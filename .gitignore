@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+/.idea/aws.xml
+/.idea/copilot.data.migration.ask2agent.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/news_agent.iml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/vcs.xml
