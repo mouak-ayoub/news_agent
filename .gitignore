@@ -213,3 +213,6 @@ __marimo__/
 /.idea/inspectionProfiles/profiles_settings.xml
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/vcs.xml
+/data/
+/reports/
+/adk_agents/news_agent_ui/.adk/session.db
