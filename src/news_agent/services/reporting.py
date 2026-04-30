@@ -5,8 +5,8 @@ from html import escape
 from pathlib import Path
 import re
 
-from .schemas import SourceProfile
-from .schemas import TriageBrief
+from ..models.triage import SourceProfile
+from ..models.triage import TriageBrief
 
 
 def render_html_report(brief: TriageBrief) -> str:

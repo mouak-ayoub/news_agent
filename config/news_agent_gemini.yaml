@@ -1,0 +1,68 @@
+model:
+  backend: gemini
+  api_key_env: GEMINI_API_KEY
+  research_model_id: gemma-4-31b-it
+  summary_model_id: gemma-4-31b-it
+  max_output_tokens: 2048
+  temperature: 0.1
+  request_timeout_seconds: 240
+
+fallback_to_heuristic: false
+
+search:
+  provider: free_news_api
+  days_back: 90
+  max_sources: 5
+  max_search_calls_per_run: 0
+  candidate_pool_size: 25
+  request_timeout_seconds: 30
+  user_agent: "news-agent/0.1 (+local learning project)"
+  api_key_env: news_triage_codex_app
+  base_url: https://api.freenewsapi.io
+
+outlets:
+  - name: BBC
+    domain: bbc.co.uk
+    country: United Kingdom
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free, broad international reporting with direct RSS links.
+    rss_urls:
+      - https://feeds.bbci.co.uk/news/world/rss.xml
+      - https://feeds.bbci.co.uk/news/world/middle_east/rss.xml
+      - https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml
+  - name: France 24
+    domain: france24.com
+    country: France
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free French international outlet with direct RSS links.
+    rss_url: https://www.france24.com/en/rss
+  - name: DW
+    domain: dw.com
+    country: Germany
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free international reporting with direct RSS links.
+    rss_url: https://rss.dw.com/rdf/rss-en-all
+  - name: Al Jazeera
+    domain: aljazeera.com
+    country: Qatar
+    medium_type: broadcaster / digital
+    orientation: mixed
+    notes: Free regional framing and international coverage with direct RSS links.
+    rss_url: https://www.aljazeera.com/xml/rss/all.xml
+  - name: RFI
+    domain: rfi.fr
+    country: France
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free French international radio/digital outlet with direct RSS links.
+    rss_url: https://www.rfi.fr/en/rss
+  - name: Times of Israel
+    domain: timesofisrael.com
+    country: Israel
+    medium_type: newspaper / digital
+    orientation: center-right
+    notes: Free Israeli outlet with direct RSS links.
+    rss_url: https://www.timesofisrael.com/feed/

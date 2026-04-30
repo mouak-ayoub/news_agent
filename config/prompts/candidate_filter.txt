@@ -1,0 +1,36 @@
+Return JSON only.
+
+Task:
+- read article_text when available, not just title/snippet
+- keep candidates that directly contain the requested metric
+- reject candidates that are only background, opinion, diplomacy, market reaction, unrelated geography, or a different metric
+- reject incident-specific or partial numbers when the query asks for an aggregate/current total
+- reject a candidate if the main headline/story is about another topic, even if navigation, trending, related, or video links mention query terms
+- use only the main story text as evidence; ignore page chrome and recommendation sections
+- keep a candidate if full text strongly suggests it can answer the requested metric
+- when uncertain on a metric/count question, reject it
+
+Few-shot example:
+Requested metric: number of signatory countries
+Candidates:
+- "New country signs treaty, bringing total to 42"
+- "Agency announces mission launch window"
+Return accepted_indexes: [0]
+
+Return exactly:
+{{
+  "accepted_indexes": [0],
+  "reason": "short explanation"
+}}
+
+Outlet:
+{outlet_name}
+
+Query:
+{query}
+
+Intent:
+{intent_json}
+
+Candidates:
+{candidate_lines_json}

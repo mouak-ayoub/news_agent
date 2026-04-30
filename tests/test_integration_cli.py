@@ -14,12 +14,13 @@ class CliIntegrationTests(unittest.TestCase):
             self.skipTest("NEWS_AGENT_KEY is not set for integration test.")
 
         project_root = Path(__file__).resolve().parents[1]
-        config_path = project_root / "config" / "news_agent.yaml"
+        config_path = project_root / "config" / "news_agent_openai.yaml"
 
         env = os.environ.copy()
         existing = env.get("PYTHONPATH", "")
         src_path = str(project_root / "src")
         env["PYTHONPATH"] = src_path if not existing else f"{src_path}{os.pathsep}{existing}"
+        query = "What are the latest verified updates on global AI regulation?"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             report_path = Path(temp_dir) / "integration_report.html"
@@ -27,7 +28,7 @@ class CliIntegrationTests(unittest.TestCase):
                 [
                     sys.executable,
                     "main.py",
-                    "What are the casualties in the Iran war?",
+                    query,
                     "--html-out",
                     str(report_path),
                 ],
@@ -39,7 +40,7 @@ class CliIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, msg=result.stderr)
-            self.assertIn('"query": "What are the casualties in the Iran war?"', result.stdout)
+            self.assertIn(f'"query": "{query}"', result.stdout)
             self.assertIn("Final brief:", result.stdout)
             self.assertIn("HTML report:", result.stdout)
             self.assertTrue(report_path.exists())

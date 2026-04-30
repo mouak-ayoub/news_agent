@@ -1,0 +1,57 @@
+Return JSON only.
+
+Task:
+- generate search queries that are likely to retrieve the requested metric
+- prefer queries containing the topic plus metric words
+- include official/source wording when useful
+- avoid broad background-only queries
+- do not include site: filters; providers add outlet scoping themselves
+
+Few-shot examples:
+
+Intent:
+{{
+  "topic": "Artemis Accords",
+  "requested_metric": "number of signatory countries",
+  "expected_answer_type": "count",
+  "time_sensitivity": "latest",
+  "must_find": ["signatories", "countries", "current total"],
+  "avoid": []
+}}
+Return:
+{{
+  "queries": [
+    "Artemis Accords number of signatory countries",
+    "Artemis Accords signatories current total",
+    "Artemis Accords countries signed latest"
+  ]
+}}
+
+Intent:
+{{
+  "topic": "coastal earthquake",
+  "requested_metric": "latest death toll and injury figures",
+  "expected_answer_type": "number or range",
+  "time_sensitivity": "latest",
+  "must_find": ["deaths", "injuries", "official toll", "reported toll"],
+  "avoid": []
+}}
+Return:
+{{
+  "queries": [
+    "coastal earthquake latest death toll injuries",
+    "coastal earthquake reported casualties deaths injured",
+    "coastal earthquake official death toll"
+  ]
+}}
+
+Return exactly:
+{{
+  "queries": ["query 1", "query 2", "query 3"]
+}}
+
+User query:
+{query}
+
+Intent:
+{intent_json}

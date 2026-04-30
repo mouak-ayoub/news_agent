@@ -8,10 +8,11 @@ model:
   backend: openai
   api_key_env: NEWS_AGENT_KEY
   research_model_id: gpt-4.1
-  model_id: gpt-5
+  summary_model_id: gpt-5
   max_output_tokens: 5000
   temperature: 0.2
-  fallback_to_heuristic: true
+
+fallback_to_heuristic: false
 
 search:
   provider: openai_web_search
@@ -20,14 +21,6 @@ search:
   max_sources: 20
   # V1 uses one broad outlet-aware search call per run.
   max_search_calls_per_run: 1
-
-budget:
-  max_monthly_spend_usd: 10.0
-  max_run_spend_usd: 0.15
-  input_cost_per_million: 0.25
-  output_cost_per_million: 2.0
-  web_search_cost_per_call: 0.01
-  ledger_path: data/usage_guard.json
 
 outlets:
   - name: Reuters
@@ -48,18 +41,20 @@ outlets:
     medium_type: TV / digital
     orientation: right
     notes: Conservative US broadcaster.
-  - name: Le Monde
-    domain: lemonde.fr
+  - name: France 24
+    domain: france24.com
     country: France
-    medium_type: newspaper
-    orientation: center-left
-    notes: Mainstream French paper.
-  - name: Le Figaro
-    domain: lefigaro.fr
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free French international outlet.
+    rss_url: https://www.france24.com/en/rss
+  - name: RFI
+    domain: rfi.fr
     country: France
-    medium_type: newspaper
-    orientation: center-right
-    notes: French center-right contrast.
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free French international radio/digital outlet.
+    rss_url: https://www.rfi.fr/en/rss
   - name: Al Jazeera
     domain: aljazeera.com
     country: Qatar
@@ -72,12 +67,13 @@ outlets:
     medium_type: newspaper / digital
     orientation: center-right
     notes: Useful for Israeli framing.
-  - name: Haaretz
-    domain: haaretz.com
+  - name: Times of Israel
+    domain: timesofisrael.com
     country: Israel
     medium_type: newspaper / digital
-    orientation: left
-    notes: Contrast with other Israeli outlets.
+    orientation: center-right
+    notes: Free Israeli outlet with direct RSS links.
+    rss_url: https://www.timesofisrael.com/feed/
   - name: Tasnim News
     domain: tasnimnews.com
     country: Iran

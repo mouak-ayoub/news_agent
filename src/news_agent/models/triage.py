@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from dataclasses import field
 import json
 
+from .research import ResearchIntent
+from .research import SearchPlan
+
 
 @dataclass(slots=True)
 class MainClaim:
@@ -62,12 +65,20 @@ class ArticleRecord:
     snippet: str
     article_text: str
     search_query: str
+    metric_found: bool = False
+    metric_value: str = ""
+    metric_type: str = ""
+    metric_evidence: str = ""
+    metric_confidence: str = ""
+    metric_notes: str = ""
 
 
 @dataclass(slots=True)
 class ResearchBundle:
     query: str
     articles: list[ArticleRecord] = field(default_factory=list)
+    intent: ResearchIntent | None = None
+    search_plan: SearchPlan | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -77,6 +88,8 @@ class ResearchBundle:
         return cls(
             query=data["query"],
             articles=[ArticleRecord(**item) for item in data.get("articles", [])],
+            intent=ResearchIntent.from_dict(data.get("intent"), data.get("query", "")),
+            search_plan=SearchPlan.from_dict(data.get("search_plan"), data.get("query", "")),
         )
 
 

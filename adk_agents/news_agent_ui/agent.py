@@ -12,10 +12,10 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from news_agent.app import build_agent_graph
-from news_agent.config import load_app_config
+from news_agent.agents.agent_builder import AgentGraphBuilder
+from news_agent.services.config_loader import load_app_config
 
 
 config = load_app_config()
-root_agent = build_agent_graph(config)
+root_agent = AgentGraphBuilder(config=config).build()
 

@@ -1,0 +1,53 @@
+Return JSON only.
+
+Task:
+- extract the requested metric from the article
+- accept numbers, ranges, counts, percentages, dates, or "not found" depending on the intent
+- distinguish the requested metric from nearby but different metrics
+- return metric_found=false for partial incident numbers when the user asked for an aggregate/current total
+- do not infer a value that is not supported by the article text
+
+Few-shot examples:
+
+Requested metric: number of signatory countries
+Article text: "The newest signature brings the total number of participating countries to 42."
+Return:
+{{
+  "metric_found": true,
+  "value": "42 countries",
+  "metric_type": "signatory count",
+  "evidence": "brings the total number of participating countries to 42",
+  "confidence": "high",
+  "notes": ""
+}}
+
+Requested metric: latest death toll and injury figures
+Article text: "Officials discussed ceasefire talks. The report did not provide casualty numbers."
+Return:
+{{
+  "metric_found": false,
+  "value": "",
+  "metric_type": "",
+  "evidence": "",
+  "confidence": "high",
+  "notes": "The article discusses the topic but does not report the requested metric."
+}}
+
+Return exactly:
+{{
+  "metric_found": true,
+  "value": "exact value or range",
+  "metric_type": "what the value measures",
+  "evidence": "short supporting quote or paraphrase",
+  "confidence": "high | medium | low",
+  "notes": "short caveat or empty string"
+}}
+
+Query:
+{query}
+
+Intent:
+{intent_json}
+
+Article:
+{article_json}

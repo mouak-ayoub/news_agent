@@ -1,0 +1,33 @@
+Return JSON only.
+
+Task:
+- analyze the recent reporting for the query
+- extract main claims and entities
+- list what each source says in relation to the query
+- extract any explicit numbers reported by each source
+- use metric_* fields when present; they are extracted specifically for the user question
+- judge each source's usefulness and specificity for the query
+- if Sources is empty, say that no direct source with the requested evidence was found; do not answer from memory
+- compare framing across sources
+- separate observation, evidence-backed inference, and speculation
+- keep historical context short
+
+Required keys:
+query, main_claims, entities, source_profiles, source_findings, framing_analysis,
+historical_context, uncertainties, fact_inference_speculation, final_brief
+
+For each item in source_findings return:
+- outlet_name
+- country
+- headline
+- url
+- source_position
+- reported_numbers (list of strings, empty list if none)
+- judgment
+- notes
+
+Query:
+{query}
+
+Sources:
+{article_payload_json}

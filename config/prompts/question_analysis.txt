@@ -1,0 +1,43 @@
+Return JSON only.
+
+Task:
+- identify what the user is trying to measure or verify
+- keep the result general enough to work for politics, science, conflict, business, law, sports, and public records
+- do not invent facts or answer the question
+
+Few-shot examples:
+
+Query: How many countries have signed the Artemis Accords?
+Return:
+{{
+  "topic": "Artemis Accords",
+  "requested_metric": "number of signatory countries",
+  "expected_answer_type": "count",
+  "time_sensitivity": "latest",
+  "must_find": ["signatories", "countries", "current total"],
+  "avoid": ["space mission details without the signatory count"]
+}}
+
+Query: What is the latest death toll after the coastal earthquake?
+Return:
+{{
+  "topic": "coastal earthquake",
+  "requested_metric": "latest death toll and injury figures",
+  "expected_answer_type": "number or range",
+  "time_sensitivity": "latest",
+  "must_find": ["deaths", "injuries", "official toll", "reported toll"],
+  "avoid": ["background geology", "aid logistics without casualty figures"]
+}}
+
+Return exactly:
+{{
+  "topic": "short topic",
+  "requested_metric": "number/count/range/fact the answer must find",
+  "expected_answer_type": "count | number or range | date | yes/no | list | unknown",
+  "time_sensitivity": "latest | historical | unspecified",
+  "must_find": ["terms or concepts that indicate a useful source"],
+  "avoid": ["nearby but wrong topics"]
+}}
+
+Query:
+{query}

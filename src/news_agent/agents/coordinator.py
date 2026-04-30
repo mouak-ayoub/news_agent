@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
@@ -7,7 +9,10 @@ from google.adk.utils.context_utils import Aclosing
 from google.genai import types
 from typing_extensions import override
 
-from ..schemas import TriageBrief
+from ..models.triage import TriageBrief
+
+
+logger = logging.getLogger(__name__)
 
 
 class CoordinatorAgent(BaseAgent):
@@ -20,9 +25,20 @@ class CoordinatorAgent(BaseAgent):
             async for event in agen:
                 yield event
 
+        workflow_error = ctx.session.state.get("workflow_error")
+        if workflow_error:
+            stage = ctx.session.state.get("workflow_error_stage", "unknown")
+            logger.error(
+                "CoordinatorAgent detected workflow failure stage=%s error=%s",
+                stage,
+                workflow_error,
+            )
+            return
+
         brief_data = ctx.session.state.get("triage_brief")
         if not brief_data:
-            raise RuntimeError("No triage brief was written to the session state.")
+            logger.error("CoordinatorAgent ended without triage brief in session state")
+            return
         brief = TriageBrief.from_dict(brief_data)
         yield Event(
             invocation_id=ctx.invocation_id,

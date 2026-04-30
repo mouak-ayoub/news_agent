@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 import sys
 
-from .app import run_triage
-from .config import load_app_config
-from .html_report import default_report_path
-from .html_report import write_html_report
+from .workflow import run_triage
+from .services.config_loader import load_app_config
+from .services.config_loader import report_root_from_config
+from .services.config_loader import resolve_cli_config_arg
+from .services.reporting import default_report_path
+from .services.reporting import write_html_report
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_logging()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
@@ -28,9 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        config = load_app_config(args.config)
+        config = load_app_config(resolve_cli_config_arg(args.config))
         brief = run_triage(args.query, config)
     except Exception as exc:
+        logger.exception("run failed")
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -39,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Final brief:")
     print(brief.final_brief)
 
-    config_root = _resolve_report_root(config.config_path)
+    config_root = report_root_from_config(config.config_path)
     report_path = (
         Path(args.html_out)
         if args.html_out
@@ -51,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _resolve_report_root(config_path: Path) -> Path:
-    resolved = config_path.resolve()
-    return resolved.parents[1] if len(resolved.parents) > 1 else Path.cwd()
+def _configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        datefmt="%H:%M:%S",
+    )

@@ -1,0 +1,38 @@
+Return JSON only.
+
+Find up to {outlet_limit} recent articles across the curated outlets below.
+Return at most one article per outlet.
+Use the planned search queries as guidance for what to look for.
+
+Requirements:
+- use only the curated outlets below
+- prefer the last {days_back} days when possible, but if needed you may use a slightly older directly relevant article instead of returning nothing
+- partial relevance is allowed when an article directly answers an important part of the query
+- do not require one article to answer every sub-part perfectly
+- an article can be useful if it covers one important actor, place, number, quote, claim, or consequence from the query
+- skip only outlets with no directly relevant article
+- keep `article_text` to one concise sentence
+- only return an article if the URL hostname belongs to the same outlet domain
+- return a JSON array and nothing else
+
+For the object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+Query:
+{query}

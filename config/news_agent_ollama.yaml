@@ -1,0 +1,69 @@
+model:
+  backend: ollama
+  api_key_env: ""
+  research_model_id: gemma4:e4b
+  summary_model_id: gemma4:e4b
+  max_output_tokens: 2048
+  temperature: 0.1
+  base_url: "http://127.0.0.1:11434"
+  request_timeout_seconds: 240
+
+fallback_to_heuristic: false
+
+search:
+  provider: google_news_rss
+  days_back: 90
+  max_sources: 6
+  max_search_calls_per_run: 0
+  candidate_pool_size: 10
+  request_timeout_seconds: 12
+  user_agent: "news-agent/0.1 (+local learning project)"
+  # Keep direct publisher RSS only; Google News URLs often redirect to consent pages in Europe.
+  allow_google_news_fallback: false
+
+outlets:
+  - name: BBC
+    domain: bbc.co.uk
+    country: United Kingdom
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free, broad international reporting with direct RSS links.
+    rss_urls:
+      - https://feeds.bbci.co.uk/news/world/rss.xml
+      - https://feeds.bbci.co.uk/news/world/middle_east/rss.xml
+      - https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml
+  - name: France 24
+    domain: france24.com
+    country: France
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free French international outlet with direct RSS links.
+    rss_url: https://www.france24.com/en/rss
+  - name: RFI
+    domain: rfi.fr
+    country: France
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free French international radio/digital outlet with direct RSS links.
+    rss_url: https://www.rfi.fr/en/rss
+  - name: DW
+    domain: dw.com
+    country: Germany
+    medium_type: public broadcaster / digital
+    orientation: center
+    notes: Free international reporting with direct RSS links.
+    rss_url: https://rss.dw.com/rdf/rss-en-all
+  - name: Al Jazeera
+    domain: aljazeera.com
+    country: Qatar
+    medium_type: broadcaster / digital
+    orientation: mixed
+    notes: Free regional framing and international coverage with direct RSS links.
+    rss_url: https://www.aljazeera.com/xml/rss/all.xml
+  - name: Times of Israel
+    domain: timesofisrael.com
+    country: Israel
+    medium_type: newspaper / digital
+    orientation: center-right
+    notes: Free Israeli outlet with direct RSS links.
+    rss_url: https://www.timesofisrael.com/feed/

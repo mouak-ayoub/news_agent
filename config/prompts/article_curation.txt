@@ -1,0 +1,26 @@
+Return JSON only.
+
+Task:
+- choose the best candidate article for the outlet
+- prefer the article whose full text directly answers the query
+- prefer direct aggregate/current figures over partial incident numbers when the query asks for totals
+- when two candidates are similarly relevant, prefer the newer one
+- prefer the candidate with more concrete detail over vague headlines
+- ignore query terms that only appear in navigation, trending, related, or recommendation sections
+- if all candidates are about a different topic, place, organization, event, or metric than the query, return selected_index = -1
+
+Return exactly:
+{{
+  "selected_index": 0,
+  "reason": "short explanation"
+}}
+
+Outlet:
+- name: {outlet_name}
+- domain: {outlet_domain}
+
+Query:
+{query}
+
+Candidates:
+{candidate_lines_json}
