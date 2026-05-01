@@ -10,6 +10,8 @@ model:
   max_output_tokens: 2048
   temperature: 0.1
   request_timeout_seconds: 240
+  gemini_retry_attempts: 5
+  gemini_retry_backoff_seconds: 3.0
 
 search:
   provider: free_news_api

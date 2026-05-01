@@ -75,6 +75,13 @@ Model calls are configured per step:
 - `metric_extraction_model_id`,
 - `summary_model_id`.
 
+Gemini/Gemma transient retry behavior is also config-driven:
+
+- `gemini_retry_attempts`,
+- `gemini_retry_backoff_seconds`.
+
+Retries apply only to transient provider/server errors. Bad requests, quota failures, and final retry exhaustion still fail the pipeline.
+
 Search provider is configured separately:
 
 - `openai_web_search` for comparison/strong retrieval,
@@ -88,7 +95,7 @@ Web-search prompt variants live in `config/prompts/web_search/`.
 Current meanings:
 
 - `web_search_research_baseline.txt`: loose recall-first search. It allows partial relevance so we do not miss useful candidates.
-- `web_search_research_cot.txt`: prompt-level chain-of-thought style. It separates retrieval and selection but still runs only one OpenAI call.
+- `web_search_research_cot.txt`: prompt-level chain-of-thought style. It separates retrieval and selection, while Python supplies the concrete site-filtered search query.
 - `web_search_research_self_consistency.txt`: prompt-level self-consistency only; it does not run multiple independent calls.
 - `web_search_research_tot.txt`: prompt-level tree-of-thought only; it does not run separate branches in code.
 
@@ -97,6 +104,7 @@ Important lesson from 2026-05-01:
 - Baseline loose recall found usable Al Jazeera and Jerusalem Post candidates for a casualty-number query.
 - CoT returned `[]` when it chose the raw natural-language question as its web-search query.
 - Search query quality matters before selection quality. Retrieval should prefer keyword/domain queries over raw natural-language questions.
+- OpenAI web search now receives deterministic `site:<domain>` search jobs from Python, so prompt variants compare selection behavior instead of uncontrolled search-query choice.
 
 ## Debug Output
 
@@ -107,6 +115,7 @@ Debug run shape:
 ```text
 debug_output/<timestamp>_<query-slug>/
   run_context.json
+  git_fingerprint.json
   report.html
   model_calls/
     001_question-analysis/
@@ -115,9 +124,10 @@ debug_output/<timestamp>_<query-slug>/
     002_query-planning/
       input.txt
       output.txt
-    003_openai-web-search/
+    003_openai-web-search-01/
       input.txt
       output.txt
+      search_job.json
       response.json
 ```
 
@@ -125,7 +135,9 @@ For OpenAI web search:
 
 - `input.txt` is the exact prompt sent to OpenAI.
 - `output.txt` is the final JSON parsed by the app.
+- `search_job.json` records the exact site-filtered query and outlet group chosen by code.
 - `response.json` is the full Responses API object, including the real web-search query chosen by the model.
+- `git_fingerprint.json` records branch, commit, dirty state, status, diff stat, and a hash of staged plus unstaged diff.
 
 This fixed a misleading earlier behavior where empty OpenAI final text was silently treated as `[]`.
 
@@ -134,7 +146,7 @@ This fixed a misleading earlier behavior where empty OpenAI final text was silen
 Known issues:
 
 - Retrieval can still return weak, partial, or too few sources.
-- OpenAI web search may choose only one search query internally.
+- OpenAI web search now always starts with one broad site-filtered recall query; higher `max_search_calls_per_run` values add smaller outlet-group jobs for better comparison.
 - Prompt-level CoT/Self-Consistency/ToT are not true multi-call algorithms.
 - Source classification is mostly based on static outlet config, not article-specific tone.
 - Veracity judgment is still too dependent on the summarizer model.
@@ -230,6 +242,7 @@ Gemma should learn task behavior from retrieved text, not memorize current event
 | 2026-05-01 | Add prompt variants | Compare baseline, CoT, self-consistency, ToT | Baseline loose recall currently retrieves better than CoT for the casualty-number test | Keep variants, improve CoT retrieval rules |
 | 2026-05-01 | Add model-call debug output | Inspect prompt/input/output for every model call | Implemented under `debug_output/<run>/model_calls/` | Keep |
 | 2026-05-01 | OpenAI response dump | Explain empty/odd web-search results | `response.json` now records actual tool query and full Responses object | Keep |
+| 2026-05-02 | Deterministic OpenAI search jobs | Stop relying on the model to invent `site:` filters | Python now builds `site:<domain>` queries, records `search_job.json`, sanitizes Markdown URLs, and preserves retrieval metadata | Keep |
 
 ## Historical Baseline Evaluation: Iran War Death Toll
 
@@ -279,8 +292,8 @@ Older GenAI course ideas to apply:
 
 ## Next Immediate Step
 
-1. Keep baseline loose recall as the stable search prompt.
-2. Improve CoT so it forces keyword/domain retrieval before selection.
+1. Run the Iran-USA casualty debug query with the deterministic OpenAI search job.
+2. Compare baseline, CoT, self-consistency, and ToT now that search-query construction is controlled by code.
 3. Add a general second retrieval attempt when search returns zero or weak candidates.
 4. Tighten summarization schema for empty-source cases.
-5. Run the same debug query after each prompt/code change and compare model-call folders.
+5. Raise `max_search_calls_per_run` only when the broad site-filtered job is not enough; outlet count plus one gives broad recall plus one job per outlet.

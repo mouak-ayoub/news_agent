@@ -6,6 +6,7 @@ Think internally before answering, but return only the JSON array.
 
 Retrieval rules:
 - First retrieve candidates, then evaluate them.
+- If a "Concrete search job" is provided at the end of this prompt, use that search query as the primary retrieval query.
 - Use keyword-style search queries, not only the raw natural-language user question.
 - Use the planned search queries as the primary search inputs.
 - Prefer short search-engine queries containing:

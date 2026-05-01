@@ -75,6 +75,7 @@ User query
 | `QueryPlanner` | Produces short search-style queries from the analyzed intent. |
 | `ResearchService` | Coordinates intent analysis, planned search, article enrichment, and metric extraction. |
 | `SearchClient` | Interface implemented by OpenAI web search, Google News RSS, and FreeNewsApi. |
+| `OpenAIWebSearchClient` | Builds deterministic `site:<domain>` search jobs, calls OpenAI web search, sanitizes returned URLs, and keeps retrieval score metadata. |
 | `ArticleContentFetcher` | Attempts to enrich candidates with article body text. |
 | `MetricExtractor` | Extracts the requested metric from article text and filters numeric/date questions to metric-bearing sources. |
 | `SummarizationService` | Produces the structured `TriageBrief`. |
@@ -93,6 +94,8 @@ model:
   article_selection_model_id: gemma-4-31b-it
   metric_extraction_model_id: gemma-4-31b-it
   summary_model_id: gemma-4-31b-it
+  gemini_retry_attempts: 5
+  gemini_retry_backoff_seconds: 3.0
 ```
 
 Search is configured separately. In `news_agent_openai.yaml`, OpenAI is used only for retrieval:
@@ -114,6 +117,23 @@ Prompt variants live under `config/prompts/web_search/`:
 
 Self-consistency and ToT are currently prompt techniques, not multi-call algorithms.
 
+For OpenAI web search, Python now builds the concrete retrieval query before the model call. With `max_search_calls_per_run: 1`, the app sends one broad query such as:
+
+```text
+Iran USA conflict latest casualty figures site:reuters.com OR site:cnn.com OR site:aljazeera.com
+```
+
+Raising `max_search_calls_per_run` keeps the broad recall job and adds smaller outlet-group jobs.
+
+Example with 6 outlets:
+
+```text
+max_search_calls_per_run: 1 -> 1 broad group of 6 outlets
+max_search_calls_per_run: 3 -> 1 broad group, then 2 groups of 3 outlets
+max_search_calls_per_run: 6 -> 1 broad group, then groups sized 2, 1, 1, 1, 1
+max_search_calls_per_run: 7 -> 1 broad group, then 1 job per outlet
+```
+
 ## Debug Output
 
 With `--debug`, each run writes a folder such as:
@@ -121,6 +141,7 @@ With `--debug`, each run writes a folder such as:
 ```text
 debug_output/<timestamp>_<query-slug>/
   run_context.json
+  git_fingerprint.json
   report.html
   model_calls/
     001_question-analysis/
@@ -129,9 +150,10 @@ debug_output/<timestamp>_<query-slug>/
     002_query-planning/
       input.txt
       output.txt
-    003_openai-web-search/
+    003_openai-web-search-01/
       input.txt
       output.txt
+      search_job.json
       response.json
 ```
 
@@ -139,7 +161,10 @@ For OpenAI web search:
 
 - `input.txt` is the exact prompt sent to OpenAI.
 - `output.txt` is the final JSON text parsed by the app.
+- `search_job.json` records the deterministic site-filtered query built by Python.
 - `response.json` is the full Responses API object, including web-search tool query and token usage.
+
+`git_fingerprint.json` records the current branch, commit, dirty flag, diff hash, status, and diff stat. This distinguishes runs even when local changes have not been committed.
 
 ## Session State
 

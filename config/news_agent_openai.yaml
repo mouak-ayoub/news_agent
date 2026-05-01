@@ -13,19 +13,21 @@ model:
   article_selection_model_id: gemma-4-31b-it
   metric_extraction_model_id: gemma-4-31b-it
   summary_model_id: gemma-4-31b-it
-  max_output_tokens: 5000
+  max_output_tokens: 10000
   temperature: 0.2
+  gemini_retry_attempts: 5
+  gemini_retry_backoff_seconds: 3.0
 
 search:
   provider: openai_web_search
   api_key_env: openai_news_api
-  web_search_model_id: gpt-4.1
+  web_search_model_id: gpt-5.4-mini
   days_back: 30
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20
-  # V1 uses one broad outlet-aware search call per run.
-  max_search_calls_per_run: 1
+  # outlet count + 1 gives one broad recall job plus one job per outlet.
+  max_search_calls_per_run: 7
   # Prompt variants live in config/prompts/web_search.
-  web_search_prompt: web_search/web_search_research_cot
+  web_search_prompt: web_search/web_search_research_self_consistency
 
 outlets_file: outlets/openai_outlets.yaml

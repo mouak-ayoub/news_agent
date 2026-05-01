@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict
 from datetime import datetime
 import json
 from pathlib import Path
 import re
+import subprocess
 
 from ..models.config import AppConfig
 
@@ -82,9 +84,51 @@ def create_debug_output(query: str, project_root: Path) -> DebugOutput:
     """Create one timestamped debug folder for a single run."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = project_root / "debug_output" / f"{timestamp}_{_slugify(query)}"
-    return DebugOutput(run_dir)
+    debug_output = DebugOutput(run_dir)
+    debug_output.write_json("git_fingerprint.json", git_fingerprint(project_root))
+    return debug_output
+
+
+def git_fingerprint(project_root: Path) -> dict[str, object]:
+    """Describe the committed version and uncommitted diff for this debug run."""
+    try:
+        branch = _git(project_root, "rev-parse", "--abbrev-ref", "HEAD")
+        commit = _git(project_root, "rev-parse", "HEAD")
+        short_commit = _git(project_root, "rev-parse", "--short", "HEAD")
+        status = _git(project_root, "status", "--short")
+        diff_stat = _git(project_root, "diff", "--stat")
+        diff = _git(project_root, "diff", "--no-ext-diff")
+        staged_diff = _git(project_root, "diff", "--cached", "--no-ext-diff")
+        diff_payload = f"{status}\n{staged_diff}\n{diff}"
+        return {
+            "branch": branch,
+            "commit": commit,
+            "short_commit": short_commit,
+            "dirty": bool(status.strip()),
+            "diff_hash": hashlib.sha256(diff_payload.encode("utf-8")).hexdigest(),
+            "status": status,
+            "diff_stat": diff_stat,
+        }
+    except Exception as exc:
+        return {
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
 
 def _slugify(value: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.lower()).strip("-")
     return normalized[:80] or "run"
+
+
+def _git(project_root: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+    )
+    return completed.stdout.strip()

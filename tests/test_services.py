@@ -15,6 +15,8 @@ from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.services.research import ResearchService
 from news_agent.services.search import build_search_client
+from news_agent.services.search.openai import _build_search_jobs
+from news_agent.services.search.openai import _clean_article_url
 from news_agent.services.search.rss import GoogleNewsRssSearchClient
 
 
@@ -326,6 +328,81 @@ class ServiceTests(unittest.TestCase):
             cutoff=cutoff,
         )
         self.assertIsNone(article)
+
+    def test_openai_url_cleaner_accepts_markdown_links(self) -> None:
+        url = _clean_article_url(
+            "[https://www.reuters.com/world/example](https://www.reuters.com/world/example)"
+        )
+
+        self.assertEqual(url, "https://www.reuters.com/world/example")
+
+    def test_openai_search_jobs_add_site_filters_and_prefer_keyword_query(self) -> None:
+        jobs = _build_search_jobs(
+            query="What are the latest casualty figures?",
+            plan=SearchPlan(
+                queries=[
+                    "What are the latest casualty figures?",
+                    "Iran USA conflict latest casualty figures",
+                ]
+            ),
+            outlets=self.config.outlets,
+            max_calls=1,
+        )
+
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(
+            jobs[0].search_query.startswith("Iran USA conflict latest casualty figures")
+        )
+        self.assertIn("site:example.com", jobs[0].search_query)
+        self.assertIn("site:second.example.com", jobs[0].search_query)
+
+    def test_openai_search_jobs_split_outlets_by_call_budget(self) -> None:
+        outlets = [
+            OutletConfig(
+                name=f"Outlet {index}",
+                domain=f"outlet{index}.example.com",
+                country="Test",
+                medium_type="newspaper",
+                orientation="center",
+                notes="test",
+            )
+            for index in range(6)
+        ]
+
+        jobs = _build_search_jobs(
+            query="What are the latest casualty figures?",
+            plan=SearchPlan(queries=["Iran USA conflict latest casualty figures"]),
+            outlets=outlets,
+            max_calls=3,
+        )
+
+        self.assertEqual(len(jobs), 3)
+        self.assertEqual([len(job.outlets) for job in jobs], [6, 3, 3])
+        self.assertIn("site:outlet0.example.com", jobs[0].search_query)
+        self.assertIn("site:outlet5.example.com", jobs[2].search_query)
+
+    def test_openai_search_jobs_use_broad_plus_one_job_per_outlet_when_budget_allows(self) -> None:
+        outlets = [
+            OutletConfig(
+                name=f"Outlet {index}",
+                domain=f"outlet{index}.example.com",
+                country="Test",
+                medium_type="newspaper",
+                orientation="center",
+                notes="test",
+            )
+            for index in range(6)
+        ]
+
+        jobs = _build_search_jobs(
+            query="What are the latest casualty figures?",
+            plan=SearchPlan(queries=["Iran USA conflict latest casualty figures"]),
+            outlets=outlets,
+            max_calls=7,
+        )
+
+        self.assertEqual(len(jobs), 7)
+        self.assertEqual([len(job.outlets) for job in jobs], [6, 1, 1, 1, 1, 1, 1])
 
 
 if __name__ == "__main__":

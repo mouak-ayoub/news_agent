@@ -113,7 +113,8 @@ class GeminiTextGenerator(TextGenerator):
             config_kwargs["max_output_tokens"] = self.config.max_output_tokens
 
         last_error: Exception | None = None
-        for attempt in range(1, 4):
+        retry_attempts = _gemini_retry_attempts(self.config)
+        for attempt in range(1, retry_attempts + 1):
             try:
                 response = self.client.models.generate_content(
                     model=self.model_id,
@@ -123,15 +124,19 @@ class GeminiTextGenerator(TextGenerator):
                 return GenerationResult(text=response.text or "")
             except Exception as exc:
                 last_error = exc
-                if not _is_transient_gemini_error(exc) or attempt == 3:
+                if not _is_transient_gemini_error(exc) or attempt == retry_attempts:
                     break
+                retry_delay = _gemini_retry_delay_seconds(self.config, attempt)
                 logger.warning(
-                    "Gemini transient generation error model=%r attempt=%d retrying: %s",
+                    "Gemini transient generation error model=%r attempt=%d/%d retrying_in=%.1fs: %s",
                     self.model_id,
                     attempt,
+                    retry_attempts,
+                    retry_delay,
                     exc,
                 )
-                time.sleep(attempt * 2)
+                if retry_delay > 0:
+                    time.sleep(retry_delay)
 
         raise ModelGenerationError(
             f"Gemini generation failed for model `{self.model_id}`: {last_error}"
@@ -220,6 +225,16 @@ def _gemini_timeout_ms(timeout_seconds: int) -> int:
     """Gemini SDK timeout is milliseconds; API requires at least 10 seconds."""
     timeout_ms = int(timeout_seconds) * 1000
     return max(timeout_ms, 10_000)
+
+
+def _gemini_retry_attempts(config: ModelConfig) -> int:
+    """Return at least one Gemini attempt, including the first call."""
+    return max(1, int(config.gemini_retry_attempts))
+
+
+def _gemini_retry_delay_seconds(config: ModelConfig, attempt: int) -> float:
+    """Linear retry delay before the next Gemini attempt."""
+    return max(0.0, float(config.gemini_retry_backoff_seconds)) * attempt
 
 
 def _is_transient_gemini_error(exc: Exception) -> bool:

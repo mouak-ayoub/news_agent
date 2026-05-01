@@ -3,6 +3,8 @@ Return JSON only. Do not expose chain-of-thought.
 Task:
 Use a Tree-of-Thought style web-search strategy internally, then return only selected article candidates.
 
+If a "Concrete search job" is provided at the end of this prompt, use that search query as the primary retrieval query.
+
 Internally explore these search branches:
 1. Metric-first branch: search for articles that directly report the requested number, count, date, amount, rate, or list.
 2. Outlet-comparison branch: search outlet by outlet so the result can compare framing across sources.

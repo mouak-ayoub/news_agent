@@ -12,10 +12,13 @@ from news_agent.models.config import SearchConfig
 from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.services.debug_output import DebugOutput
+from news_agent.services.debug_output import create_debug_output
 from news_agent.services.summarization import SummarizationService
 from news_agent.services.text_generation import ModelGenerationError
 from news_agent.services.text_generation import ModelOutputError
 from news_agent.services.text_generation import StaticTextGenerator
+from news_agent.services.text_generation import _gemini_retry_attempts
+from news_agent.services.text_generation import _gemini_retry_delay_seconds
 from news_agent.services.text_generation import openai_supports_temperature
 
 
@@ -206,10 +209,28 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("What changed?", (call_dirs[0] / "input.txt").read_text())
             self.assertIn("Debug test brief", (call_dirs[0] / "output.txt").read_text())
 
+    def test_debug_output_writes_git_fingerprint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            debug_output = create_debug_output("What changed?", Path(tmp_dir))
+
+            self.assertTrue((debug_output.run_dir / "git_fingerprint.json").exists())
+
     def test_gpt5_family_omits_temperature(self) -> None:
         self.assertFalse(openai_supports_temperature("gpt-5"))
         self.assertFalse(openai_supports_temperature("gpt-5-mini"))
         self.assertTrue(openai_supports_temperature("gpt-4.1"))
+
+    def test_gemini_retry_config_is_sanitized(self) -> None:
+        config = ModelConfig(
+            backend="gemini",
+            api_key_env="GEMINI_API_KEY",
+            summary_model_id="gemma-4-31b-it",
+            gemini_retry_attempts=0,
+            gemini_retry_backoff_seconds=-2.0,
+        )
+
+        self.assertEqual(_gemini_retry_attempts(config), 1)
+        self.assertEqual(_gemini_retry_delay_seconds(config, attempt=2), 0.0)
 
 
 if __name__ == "__main__":

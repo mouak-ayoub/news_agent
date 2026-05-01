@@ -65,6 +65,7 @@ class ArticleRecord:
     snippet: str
     article_text: str
     search_query: str
+    retrieval_metadata: dict[str, object] = field(default_factory=dict)
     metric_found: bool = False
     metric_value: str = ""
     metric_type: str = ""

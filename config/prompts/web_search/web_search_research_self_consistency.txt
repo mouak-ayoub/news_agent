@@ -6,6 +6,8 @@ Use web search to find article candidates from the curated outlets. Internally e
 - pass B: requested metric match
 - pass C: outlet/domain/recency quality
 
+If a "Concrete search job" is provided at the end of this prompt, use that search query as the primary retrieval query.
+
 Accept an article only when at least two passes support it. If no candidate for an outlet passes, skip that outlet.
 
 Selection rules:

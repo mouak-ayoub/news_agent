@@ -24,6 +24,8 @@ flowchart TD
     K --> R
     K --> S
     S --> AF["Article candidates"]
+    R --> WSJ["Deterministic site-filtered search jobs"]
+    WSJ --> S
     AF --> AC["ArticleContentFetcher"]
     AC --> ME["MetricExtractor"]
     ME --> RB["ResearchBundle"]
@@ -91,6 +93,7 @@ classDiagram
       <<interface>>
     }
     class OpenAIWebSearchClient
+    class WebSearchJob
     class GoogleNewsRssSearchClient
     class FreeNewsApiSearchClient
     class ArticleContentFetcher
@@ -121,6 +124,7 @@ classDiagram
     ResearchService --> ArticleContentFetcher
     ResearchService --> MetricExtractor
     SearchClient <|.. OpenAIWebSearchClient
+    OpenAIWebSearchClient --> WebSearchJob
     SearchClient <|.. GoogleNewsRssSearchClient
     SearchClient <|.. FreeNewsApiSearchClient
     ResearchService --> ResearchBundle
@@ -170,6 +174,7 @@ flowchart TD
     Folder --> Calls["model_calls/"]
     Calls --> In["input.txt"]
     Calls --> Out["output.txt"]
+    Calls --> Job["search_job.json for OpenAI web search"]
     Calls --> Resp["response.json for OpenAI web search"]
     Calls --> Err["error.txt when a model call fails"]
 ```

@@ -19,6 +19,8 @@ class ModelConfig:
     metric_extraction_model_id: str = ""
     base_url: str = "http://127.0.0.1:11434"
     request_timeout_seconds: int = 240
+    gemini_retry_attempts: int = 3
+    gemini_retry_backoff_seconds: float = 2.0
 
     def model_id_for_step(self, step: str) -> str:
         """Return the configured model for one pipeline step."""

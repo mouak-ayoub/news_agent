@@ -3,6 +3,7 @@ Return JSON only.
 Find up to {outlet_limit} recent articles across the curated outlets below.
 Return at most one article per outlet.
 Use the planned search queries as guidance for what to look for.
+If a "Concrete search job" is provided at the end of this prompt, use that search query as the primary retrieval query.
 
 Requirements:
 - use only the curated outlets below
