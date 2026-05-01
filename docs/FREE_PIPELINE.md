@@ -1,72 +1,91 @@
-# Free Pipeline
+# Free And Low-Cost Pipeline
 
-The project now has two runtime configs:
+This project keeps several configs so retrieval/model choices can be swapped without changing Python code.
 
-- `config/news_agent.yaml`: OpenAI-backed pipeline.
-- `config/news_agent_free.yaml`: free baseline with Google News RSS and heuristic summarization.
+## Current Configs
 
-Run the free baseline:
+| Config | Retrieval | Model backend | Keys | Status |
+| --- | --- | --- | --- | --- |
+| `config/news_agent_openai.yaml` | OpenAI web search | Gemini API hosting Gemma | `openai_news_api`, `GEMINI_API_KEY` | Best comparison pipeline. |
+| `config/news_agent_gemini.yaml` | FreeNewsApi | Gemini API hosting Gemma | `news_triage_codex_app`, `GEMINI_API_KEY` | Low-cost search experiment. |
+| `config/news_agent_ollama.yaml` | direct publisher RSS | local Ollama | none for model | Local-model track. |
+| `config/news_agent_free.yaml` | direct publisher RSS | placeholder heuristic backend | none | Retrieval-only/free placeholder; not the quality target. |
+
+## Running The Low-Cost Track
+
+Gemini + FreeNewsApi:
 
 ```powershell
-.\.venv\Scripts\python.exe main.py "What are the latest verified updates on global AI regulation?" --config config\news_agent_free.yaml --html-out reports\free-run.html
+$env:GEMINI_API_KEY="your-google-key"
+$env:news_triage_codex_app="your-freenewsapi-key"
+.\.venv\Scripts\python.exe main.py "What are the latest verified updates on global AI regulation?" --config config\news_agent_gemini.yaml --html-out reports\gemini-run.html --debug
 ```
 
-## What Is Free Today
+Local Ollama:
 
-The free config uses:
+```powershell
+.\.venv\Scripts\python.exe main.py "What are the latest verified updates on global AI regulation?" --config config\news_agent_ollama.yaml --html-out reports\ollama-run.html
+```
 
-- Google News RSS for retrieval,
-- local Python filtering for relevance,
-- heuristic extraction/summarization,
-- local HTML report generation.
+## What Is Actually Free
 
-It does not require:
+Fully free means:
 
-- `NEWS_AGENT_KEY`,
-- OpenAI,
-- paid Google Search grounding.
+- no OpenAI API,
+- no hosted Gemini API,
+- no paid search API,
+- local model inference after the model is downloaded,
+- RSS or another free retrieval source.
+
+The closest current config is `news_agent_ollama.yaml`, but retrieval still depends on what direct publisher RSS exposes.
+
+## Current Search Lessons
+
+Google News RSS is useful for titles and snippets, but in Europe it often redirects through Google consent pages. Because of that, the RSS configs now keep direct publisher feeds and disable Google News fallback.
+
+FreeNewsApi can return full article details, but API search quality depends heavily on query planning, pagination, publisher coverage, and quota. It is useful for experiments but not yet a guaranteed replacement for web search.
+
+OpenAI web search currently gives the best retrieval behavior when the prompt uses loose recall rules. The debug output showed that a stricter CoT prompt may return `[]` if it chooses a weak natural-language search query.
+
+## Model Strategy
+
+Gemma should not be expected to know current news. It should work from retrieved article text.
+
+Use Gemma for:
+
+- question analysis,
+- query planning,
+- candidate filtering,
+- article selection,
+- metric extraction,
+- final summarization.
+
+Keep retrieval separate:
+
+- OpenAI web search for strong comparison runs,
+- FreeNewsApi for lower-cost API experiments,
+- RSS for no-key/local experiments.
 
 ## Current Limits
 
-The free baseline can find relevant article titles and snippets, but it usually cannot extract all numbers from the full article body.
-
-Known limits:
-
-- Google News RSS often exposes only titles and short snippets.
-- Some RSS links point through Google News redirects.
+- RSS often exposes only titles and snippets.
 - Full article fetching may hit consent pages, paywalls, or bot protection.
-- The heuristic summarizer cannot reason like a strong model.
-
-## Gemma Question
-
-For a fully local/free setup, Gemma should run locally.
-
-That means either:
-
-- download Gemma weights and run them through a local inference stack, or
-- use a local runner such as Ollama or LM Studio if it supports the target Gemma model.
-
-If Gemma is used through a Google-hosted API, then the model is not downloaded locally. That may still be free within limits, but it depends on API availability and terms.
+- FreeNewsApi may return irrelevant or low-coverage candidates for some outlets.
+- Prompt-only self-consistency and ToT do not run multiple independent searches.
+- The system currently has no automatic second search round when retrieval is weak.
 
 ## Recommended Next Step
 
-Add a local model backend:
+Add a general retrieval retry policy:
 
 ```text
-Google News RSS
-  -> article/snippet extraction
-  -> local Gemma extraction
-  -> heuristic verification
-  -> final report
+first pass: loose recall prompt
+if zero or weak sources:
+  retry with broader keyword/domain query strategy
+then:
+  fetch full article body
+  extract requested metric
+  keep only metric-bearing articles for numeric/date questions
 ```
 
-Start with Gemma only for structured extraction:
-
-- numbers,
-- dates,
-- country/geography,
-- attribution,
-- uncertainty,
-- source URL.
-
-Do not use Gemma to memorize current news.
+This should stay general. Do not add query-specific code or vocabulary for one conflict, country, or topic.

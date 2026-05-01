@@ -4,6 +4,19 @@ Fine-tuning is useful for this project, but only after the baseline pipeline is 
 
 The model should not be fine-tuned to memorize current news. Current events must come from search/retrieval. Fine-tuning should teach the model how to transform retrieved source text into disciplined structured output.
 
+## Current Pipeline Context
+
+The app now routes model calls per step:
+
+- question analysis,
+- query planning,
+- candidate filtering,
+- article selection,
+- metric extraction,
+- final summarization.
+
+The hybrid config uses Gemma through the Gemini API for those reasoning steps and OpenAI only for web-search retrieval. Fine-tuning should target the reasoning/extraction steps, not web search.
+
 ## What To Fine-Tune
 
 Good fine-tuning targets:
@@ -15,6 +28,7 @@ Good fine-tuning targets:
 - separate observation, evidence-backed inference, and speculation,
 - produce valid JSON matching `TriageBrief`,
 - write concise final briefs without overclaiming.
+- keep the output schema stable when sources are empty or weak.
 
 Bad fine-tuning targets:
 
@@ -22,6 +36,7 @@ Bad fine-tuning targets:
 - memorizing outlet political positions as permanent facts,
 - learning hidden motives of countries or media outlets,
 - replacing web search with model memory.
+- deciding which live article exists without retrieval evidence.
 
 ## Dataset Shape
 
@@ -73,12 +88,13 @@ Measure before and after fine-tuning:
 ## Recommended Path
 
 1. Improve retrieval and verification first.
-2. Save real agent runs as baseline examples.
-3. Manually correct 20-50 outputs into ideal outputs.
-4. Use a stronger model as a teacher to draft more examples, then review them.
-5. Fine-tune a small Gemma model with LoRA or QLoRA.
-6. Compare the tuned model against the held-out evaluation set.
-7. Keep the tuned model only if it improves metrics, not just style.
+2. Use `--debug` runs as raw data: prompts, model outputs, and OpenAI response dumps.
+3. Save successful and failed examples for each step separately.
+4. Manually correct 20-50 outputs into ideal outputs.
+5. Use a stronger model as a teacher to draft more examples, then review them.
+6. Fine-tune a small Gemma model with LoRA or QLoRA.
+7. Compare the tuned model against the held-out evaluation set.
+8. Keep the tuned model only if it improves metrics, not just style.
 
 ## LoRA vs QLoRA
 
@@ -109,6 +125,29 @@ Start with one adapter:
 > `news-extraction-lora`
 
 That is the highest-value adapter because the current agent fails most at extracting and normalizing numbers from retrieved sources.
+
+## Debug Runs As Training Data
+
+Debug folders have the shape:
+
+```text
+debug_output/<run>/
+  run_context.json
+  model_calls/
+    001_question-analysis/input.txt
+    001_question-analysis/output.txt
+    ...
+```
+
+Use these files to build examples, but do not train directly on every raw output. First classify each run:
+
+- good output,
+- bad retrieval,
+- bad schema,
+- bad metric extraction,
+- bad summary.
+
+For fine-tuning, only use corrected examples. Raw failed outputs are useful for evaluation and regression tests.
 
 ## Decision Rule
 

@@ -401,6 +401,34 @@ Judge the system on:
 
 ---
 
+## Current Implementation Status
+
+The repository now implements a first ADK version of the assignment:
+
+- `main.py` runs the workflow from the command line or from PyCharm defaults.
+- `CoordinatorAgent` owns the ADK workflow.
+- `ResearchAgent` calls a research service.
+- `SummarizerAgent` writes the final structured brief.
+- `ResearchService` runs question analysis, query planning, search, article enrichment, and metric extraction.
+- Search providers are pluggable: OpenAI web search, FreeNewsApi, and Google News RSS.
+- Model routing is explicit per step in YAML config.
+- Prompts live in `config/prompts/`.
+- Outlet registries live in `config/outlets/`.
+- HTML report templates live in `config/html/`.
+- Debug runs save model-call inputs/outputs under `debug_output/`.
+
+Current practical focus:
+
+- improve retrieval quality,
+- keep the code general with no query-specific branches,
+- strengthen metric extraction,
+- add a general second search round when evidence is weak,
+- tighten JSON schema reliability.
+
+The current system has not yet implemented all proposed agents as separate ADK agents. Some responsibilities, such as extraction and verification, are currently service stages. That is intentional for now: the code stays less verbose while the pipeline behavior is still being validated.
+
+---
+
 ## Example final brief
 
 ### Query
