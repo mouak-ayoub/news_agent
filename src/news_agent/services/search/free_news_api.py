@@ -16,10 +16,10 @@ from ...models.research import ResearchIntent
 from ...models.research import SearchPlan
 from ...models.triage import ArticleRecord
 from ...models.triage import ResearchBundle
+from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
 from ..text_generation import ModelGenerationError
 from ..text_generation import TextGenerator
-from ..text_generation import build_text_generator
 from .candidate_filter import CandidateFilter
 
 
@@ -34,19 +34,18 @@ class FreeNewsApiSearchClient:
         config: AppConfig,
         prompt_service: PromptService | None = None,
         text_generator: TextGenerator | None = None,
+        debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.search_config = config.search
         self.base_url = (self.search_config.base_url or "https://api.freenewsapi.io").rstrip("/")
         self.prompt_service = prompt_service or PromptService()
-        self.text_generator = text_generator or build_text_generator(
-            config.model,
-            model_id=config.model.research_model_id or config.model.summary_model_id,
-        )
+        self.text_generator = text_generator
         self.candidate_filter = CandidateFilter(
             config=config,
             prompt_service=self.prompt_service,
-            text_generator=self.text_generator,
+            text_generator=text_generator,
+            debug_output=debug_output,
         )
         self.session = requests.Session()
         self.session.headers.update(

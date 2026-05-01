@@ -1,0 +1,46 @@
+Return JSON only. Do not expose chain-of-thought.
+
+Task:
+Use web search to find article candidates from the curated outlets. Internally evaluate each candidate with three independent passes:
+- pass A: topic match
+- pass B: requested metric match
+- pass C: outlet/domain/recency quality
+
+Accept an article only when at least two passes support it. If no candidate for an outlet passes, skip that outlet.
+
+Selection rules:
+- use only the curated outlets below
+- return at most one article per outlet
+- prefer direct metric evidence over general context
+- prefer explicit numbers, trackers, official statements, or articles whose body likely contains the requested metric
+- prefer recent items from the last {days_back} days, but allow older direct evidence over newer weak context
+- reject articles from domains not listed for the outlet
+- keep `article_text` to one concise evidence sentence
+- return a JSON array and nothing else
+
+For each object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+- topic_match_score: integer 0-5
+- metric_match_score: integer 0-5
+- recency_score: integer 0-5
+- consistency_votes: integer 0-3
+- selection_reason: short sentence
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+Query:
+{query}

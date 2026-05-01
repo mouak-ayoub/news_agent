@@ -10,8 +10,8 @@ import unittest
 
 class CliIntegrationTests(unittest.TestCase):
     def test_main_cli_runs_end_to_end_with_yaml_config(self) -> None:
-        if not os.environ.get("NEWS_AGENT_KEY"):
-            self.skipTest("NEWS_AGENT_KEY is not set for integration test.")
+        if not os.environ.get("openai_news_api"):
+            self.skipTest("openai_news_api is not set for integration test.")
 
         project_root = Path(__file__).resolve().parents[1]
         config_path = project_root / "config" / "news_agent_openai.yaml"

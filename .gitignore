@@ -215,4 +215,6 @@ __marimo__/
 /.idea/vcs.xml
 /data/
 /reports/
+/debug_output/
 /adk_agents/news_agent_ui/.adk/session.db
+/debug_output.zip

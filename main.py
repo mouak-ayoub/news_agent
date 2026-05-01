@@ -6,8 +6,9 @@ import sys
 # with `.\.venv\Scripts\python.exe main.py` and no command-line arguments.
 DEFAULT_QUERY = "What are the latest casualty figures in the Iran-USA conflict?"
 # Short config names are resolved from the project `config` folder.
-DEFAULT_CONFIG = "news_agent_gemini.yaml"
-DEFAULT_HTML_OUT = "reports/gemma4-run.html"
+DEFAULT_CONFIG = "news_agent_openai.yaml"
+DEFAULT_HTML_OUT = "reports/openai-run.html"
+DEFAULT_DEBUG = True
 
 
 SRC_DIR = Path(__file__).resolve().parent / "src"
@@ -25,4 +26,6 @@ if __name__ == "__main__":
             argv.extend(["--config", DEFAULT_CONFIG])
         if DEFAULT_HTML_OUT:
             argv.extend(["--html-out", DEFAULT_HTML_OUT])
+        if DEFAULT_DEBUG:
+            argv.append("--debug")
     raise SystemExit(main(argv))

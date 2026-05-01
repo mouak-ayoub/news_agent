@@ -6,14 +6,10 @@ import logging
 import re
 
 from ..models.config import AppConfig
-from ..models.triage import Entities
-from ..models.triage import FactInferenceSpeculation
-from ..models.triage import MainClaim
 from ..models.triage import ResearchBundle
-from ..models.triage import SourceFinding
-from ..models.triage import SourceProfile
 from ..models.triage import TriageBrief
 from ..models.generation import GenerationResult
+from .debug_output import DebugOutput
 from .prompt_service import PromptService
 from .text_generation import ModelGenerationError
 from .text_generation import ModelOutputError
@@ -34,10 +30,12 @@ class SummarizationService:
         config: AppConfig,
         text_generator: TextGenerator,
         prompt_service: PromptService | None = None,
+        debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.text_generator = text_generator
         self.prompt_service = prompt_service or PromptService()
+        self.debug_output = debug_output
 
     def summarize(self, query: str, bundle: ResearchBundle) -> TriageBrief:
         logger.info(
@@ -45,25 +43,30 @@ class SummarizationService:
             query,
             len(bundle.articles),
         )
+        prompt = self._build_prompt(query, bundle)
+        debug_call = (
+            self.debug_output.start_model_call("summarization", prompt)
+            if self.debug_output
+            else None
+        )
         try:
-            result: GenerationResult = self.text_generator.generate(
-                self._build_prompt(query, bundle)
-            )
+            result: GenerationResult = self.text_generator.generate(prompt)
+            if debug_call:
+                debug_call.write_output(result.text)
             payload = json.loads(extract_json_block(result.text))
             brief = self._normalize(query, bundle, payload)
             logger.info("summarization finished mode=model")
             return brief
-        except ModelGenerationError:
+        except ModelGenerationError as exc:
+            if debug_call:
+                debug_call.write_error(exc)
             logger.exception("summarization failed because model generation failed")
             raise
-        except (ModelOutputError, json.JSONDecodeError, KeyError, TypeError, ValueError):
-            if not self.config.fallback_to_heuristic:
-                logger.exception("summarization failed because model output was unusable")
-                raise
-            logger.warning("summarization output unusable; using heuristic summary")
-            brief = self._heuristic(query, bundle)
-            logger.info("summarization finished mode=heuristic")
-            return brief
+        except (ModelOutputError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            if debug_call:
+                debug_call.write_error(exc)
+            logger.exception("summarization failed because model output was unusable")
+            raise
 
     def _build_prompt(self, query: str, bundle: ResearchBundle) -> str:
         article_payload = [asdict(article) for article in bundle.articles]
@@ -180,82 +183,6 @@ class SummarizationService:
         }
         payload["final_brief"] = str(payload.get("final_brief", ""))
         return TriageBrief.from_dict(payload)
-
-    def _heuristic(self, query: str, bundle: ResearchBundle) -> TriageBrief:
-        source_profiles = [
-            SourceProfile(**profile) for profile in self._build_source_profiles(bundle)
-        ]
-        source_findings = [
-            SourceFinding(**finding) for finding in self._build_source_findings(bundle)
-        ]
-        claims = [
-            MainClaim(
-                claim=article.title,
-                status=(
-                    "unclear / not enough evidence"
-                    if len(bundle.articles) < 3
-                    else "partly confirmed"
-                ),
-                evidence_level="low" if len(bundle.articles) < 3 else "moderate",
-            )
-            for article in bundle.articles[:3]
-        ]
-        observations = [
-            f"{finding.outlet_name}: {finding.source_position or finding.headline}"
-            for finding in source_findings[:3]
-        ]
-        inferences = []
-        has_explicit_numbers = any(finding.reported_numbers for finding in source_findings)
-        if len({article.country for article in bundle.articles}) > 1:
-            inferences.append(
-                "Coverage differences likely reflect each outlet's local context, audience, and editorial priorities."
-            )
-        if len({article.orientation for article in bundle.articles}) > 1:
-            inferences.append(
-                "Differences in outlet orientation suggest the story may be framed through different assumptions or priorities."
-            )
-        if has_explicit_numbers:
-            inferences.append(
-                "Some outlets provide explicit figures, but they still need cross-checking before being treated as settled totals."
-            )
-        if not inferences:
-            inferences.append(
-                "The current source set is narrow, so framing conclusions should stay tentative."
-            )
-        speculation = [
-            "Some silence or emphasis may be strategic, but the available evidence is insufficient to present motive as fact."
-        ]
-        uncertainties = ["This v1 uses a single retrieval round and may miss later updates."]
-        if len(bundle.articles) < 3:
-            uncertainties.append("Fewer than three strong sources were retrieved.")
-
-        return TriageBrief(
-            query=query,
-            main_claims=claims,
-            entities=Entities(countries=sorted({a.country for a in bundle.articles})),
-            source_profiles=source_profiles,
-            source_findings=source_findings,
-            framing_analysis=inferences,
-            historical_context=[
-                "Recent reporting can change quickly, so source dates and update times matter.",
-                "Outlet framing often reflects audience, ownership, access to sources, and editorial standards.",
-            ],
-            uncertainties=uncertainties,
-            fact_inference_speculation=FactInferenceSpeculation(
-                observation=observations,
-                evidence_backed_inference=inferences,
-                speculation=speculation,
-            ),
-            final_brief=(
-                "Retrieved outlets offer a partial answer, and the safest read is to compare each source's wording and treat uncross-checked figures cautiously."
-                if bundle.articles and has_explicit_numbers
-                else (
-                    "The topic appears to be actively reported, but the main divergence is in what outlets emphasize, omit, or contextualize."
-                    if bundle.articles
-                    else "No strong recent sources were retrieved, so the brief cannot support a confident triage judgment."
-                )
-            ),
-        )
 
     def _build_source_profiles(self, bundle: ResearchBundle) -> list[dict]:
         """Build profile rows for sources that were actually part of this run."""

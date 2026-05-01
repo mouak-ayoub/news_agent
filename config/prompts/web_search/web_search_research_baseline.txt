@@ -1,7 +1,5 @@
 Return JSON only.
 
-Legacy baseline prompt. New prompt-engineering variants live in config/prompts/web_search.
-
 Find up to {outlet_limit} recent articles across the curated outlets below.
 Return at most one article per outlet.
 Use the planned search queries as guidance for what to look for.
@@ -17,7 +15,7 @@ Requirements:
 - only return an article if the URL hostname belongs to the same outlet domain
 - return a JSON array and nothing else
 
-For the object return exactly:
+For each object return exactly:
 - title
 - url
 - outlet_name

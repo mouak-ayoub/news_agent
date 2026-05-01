@@ -8,6 +8,7 @@ from ...models.config import AppConfig
 from ...models.config import OutletConfig
 from ...models.research import ResearchIntent
 from ...models.triage import ArticleRecord
+from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
 from ..text_generation import ModelGenerationError
 from ..text_generation import ModelOutputError
@@ -27,13 +28,15 @@ class CandidateFilter:
         config: AppConfig,
         prompt_service: PromptService | None = None,
         text_generator: TextGenerator | None = None,
+        debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.prompt_service = prompt_service or PromptService()
         self.text_generator = text_generator or build_text_generator(
             config.model,
-            model_id=config.model.research_model_id or config.model.summary_model_id,
+            model_id=config.model.model_id_for_step("candidate_filter"),
         )
+        self.debug_output = debug_output
 
     def filter(
         self,
@@ -62,11 +65,8 @@ class CandidateFilter:
             logger.exception("candidate filtering failed because model generation failed")
             raise
         except (ModelOutputError, json.JSONDecodeError, TypeError, ValueError):
-            if not self.config.fallback_to_heuristic:
-                logger.exception("candidate filtering failed because model output was unusable")
-                raise
-            logger.warning("candidate filtering output unusable; keeping candidates")
-            return candidates
+            logger.exception("candidate filtering failed because model output was unusable")
+            raise
 
     def _filter_with_model(
         self,
@@ -86,20 +86,31 @@ class CandidateFilter:
             }
             for index, article in enumerate(candidates)
         ]
-        result = self.text_generator.generate(
-            self.prompt_service.build(
-                "candidate_filter",
-                query=query,
-                outlet_name=outlet.name,
-                intent_json=json.dumps(asdict(intent), ensure_ascii=False, indent=2),
-                candidate_lines_json=json.dumps(
-                    candidate_payload,
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-            )
+        prompt = self.prompt_service.build(
+            "candidate_filter",
+            query=query,
+            outlet_name=outlet.name,
+            intent_json=json.dumps(asdict(intent), ensure_ascii=False, indent=2),
+            candidate_lines_json=json.dumps(
+                candidate_payload,
+                ensure_ascii=False,
+                indent=2,
+            ),
         )
-        return json.loads(extract_json_block(result.text))
+        debug_call = (
+            self.debug_output.start_model_call(f"candidate_filter_{outlet.name}", prompt)
+            if self.debug_output
+            else None
+        )
+        try:
+            result = self.text_generator.generate(prompt)
+            if debug_call:
+                debug_call.write_output(result.text)
+            return json.loads(extract_json_block(result.text))
+        except (ModelGenerationError, ModelOutputError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            if debug_call:
+                debug_call.write_error(exc)
+            raise
 
 
 def _coerce_indexes(value: object, candidate_count: int) -> list[int]:

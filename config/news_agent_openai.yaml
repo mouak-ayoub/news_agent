@@ -1,94 +1,31 @@
-# Runtime settings live outside the code so we can swap the model id,
-# source registry, and limits without editing Python.
+# Hybrid config: use Gemma through the Gemini API for reasoning steps,
+# and use OpenAI only for the web-search retrieval call.
 #
 # YAML is used here because you asked for a config format that is easy to read
 # and edit in the `config/` folder.
 
 model:
-  backend: openai
-  api_key_env: NEWS_AGENT_KEY
-  research_model_id: gpt-4.1
-  summary_model_id: gpt-5
+  backend: gemini
+  api_key_env: GEMINI_API_KEY
+  question_analysis_model_id: gemma-4-31b-it
+  query_planning_model_id: gemma-4-31b-it
+  candidate_filter_model_id: gemma-4-31b-it
+  article_selection_model_id: gemma-4-31b-it
+  metric_extraction_model_id: gemma-4-31b-it
+  summary_model_id: gemma-4-31b-it
   max_output_tokens: 5000
   temperature: 0.2
 
-fallback_to_heuristic: false
-
 search:
   provider: openai_web_search
-  days_back: 7
+  api_key_env: openai_news_api
+  web_search_model_id: gpt-4.1
+  days_back: 30
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20
   # V1 uses one broad outlet-aware search call per run.
   max_search_calls_per_run: 1
+  # Prompt variants live in config/prompts/web_search.
+  web_search_prompt: web_search/web_search_research_cot
 
-outlets:
-  - name: Reuters
-    domain: reuters.com
-    country: United Kingdom
-    medium_type: wire service
-    orientation: center
-    notes: Global wire service often useful as a baseline factual source.
-  - name: CNN
-    domain: cnn.com
-    country: United States
-    medium_type: TV / digital
-    orientation: center-left
-    notes: Mainstream US broadcaster.
-  - name: Fox News
-    domain: foxnews.com
-    country: United States
-    medium_type: TV / digital
-    orientation: right
-    notes: Conservative US broadcaster.
-  - name: France 24
-    domain: france24.com
-    country: France
-    medium_type: public broadcaster / digital
-    orientation: center
-    notes: Free French international outlet.
-    rss_url: https://www.france24.com/en/rss
-  - name: RFI
-    domain: rfi.fr
-    country: France
-    medium_type: public broadcaster / digital
-    orientation: center
-    notes: Free French international radio/digital outlet.
-    rss_url: https://www.rfi.fr/en/rss
-  - name: Al Jazeera
-    domain: aljazeera.com
-    country: Qatar
-    medium_type: broadcaster / digital
-    orientation: mixed
-    notes: Strong regional framing value.
-  - name: Jerusalem Post
-    domain: jpost.com
-    country: Israel
-    medium_type: newspaper / digital
-    orientation: center-right
-    notes: Useful for Israeli framing.
-  - name: Times of Israel
-    domain: timesofisrael.com
-    country: Israel
-    medium_type: newspaper / digital
-    orientation: center-right
-    notes: Free Israeli outlet with direct RSS links.
-    rss_url: https://www.timesofisrael.com/feed/
-  - name: Tasnim News
-    domain: tasnimnews.com
-    country: Iran
-    medium_type: state-aligned digital
-    orientation: state-aligned
-    notes: Useful for Iranian framing.
-  - name: El Pais
-    domain: elpais.com
-    country: Spain
-    medium_type: newspaper
-    orientation: center-left
-    notes: Spanish mainstream paper.
-  - name: ABC
-    domain: abc.es
-    country: Spain
-    medium_type: newspaper
-    orientation: center-right
-    notes: Spanish center-right contrast.
+outlets_file: outlets/openai_outlets.yaml

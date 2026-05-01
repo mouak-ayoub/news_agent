@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
 import json
 import logging
-import re
 
 from ...models.config import AppConfig
 from ...models.config import OutletConfig
 from ...models.research import ResearchIntent
 from ...models.triage import ArticleRecord
+from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
 from ..text_generation import TextGenerator
 from ..text_generation import build_text_generator
@@ -29,17 +28,19 @@ class ArticleSelector:
         config: AppConfig,
         prompt_service: PromptService | None = None,
         text_generator: TextGenerator | None = None,
+        debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.prompt_service = prompt_service or PromptService()
         self.text_generator = text_generator or build_text_generator(
             config.model,
-            model_id=config.model.research_model_id or config.model.summary_model_id,
+            model_id=config.model.model_id_for_step("article_selection"),
         )
+        self.debug_output = debug_output
         self.candidate_filter = CandidateFilter(
             config=config,
             prompt_service=self.prompt_service,
-            text_generator=self.text_generator,
+            debug_output=self.debug_output,
         )
 
     def choose_best_article(
@@ -49,7 +50,7 @@ class ArticleSelector:
         candidates: list[ArticleRecord],
         intent: ResearchIntent | None = None,
     ) -> ArticleRecord | None:
-        """Pick the best outlet article by prompt, with heuristic fallback when needed."""
+        """Pick the best outlet article by prompt."""
         candidates = self.candidate_filter.filter(query, outlet, candidates, intent)
         if not candidates:
             return None
@@ -61,10 +62,16 @@ class ArticleSelector:
             outlet.name,
             len(candidates),
         )
+        prompt = self._build_prompt(query, outlet, candidates)
+        debug_call = (
+            self.debug_output.start_model_call(f"article_selection_{outlet.name}", prompt)
+            if self.debug_output
+            else None
+        )
         try:
-            result = self.text_generator.generate(
-                self._build_prompt(query, outlet, candidates)
-            )
+            result = self.text_generator.generate(prompt)
+            if debug_call:
+                debug_call.write_output(result.text)
             payload = json.loads(extract_json_block(result.text))
             selected_index = _coerce_candidate_index(
                 payload.get("selected_index"),
@@ -94,20 +101,14 @@ class ArticleSelector:
             KeyError,
             TypeError,
             ValueError,
-        ):
-            if not self.config.fallback_to_heuristic:
-                logger.exception("article selection failed because model output was unusable")
-                raise
-            article = _fallback_select_best_article(candidates, query)
-            logger.warning("article selection output unusable; using heuristic selection")
-            if article is not None:
-                logger.info(
-                    "article selection selected mode=fallback outlet=%r url=%s",
-                    outlet.name,
-                    article.url,
-                )
-            return article
-        except ModelGenerationError:
+        ) as exc:
+            if debug_call:
+                debug_call.write_error(exc)
+            logger.exception("article selection failed because model output was unusable")
+            raise
+        except ModelGenerationError as exc:
+            if debug_call:
+                debug_call.write_error(exc)
             logger.exception("article selection failed because model generation failed")
             raise
 
@@ -174,54 +175,3 @@ def _coerce_candidate_index(value: object, candidate_count: int) -> int | None:
         return index
     return None
 
-
-def _fallback_select_best_article(
-    candidates: list[ArticleRecord],
-    query: str,
-) -> ArticleRecord | None:
-    if not candidates:
-        return None
-    return max(
-        candidates,
-        key=lambda article: (_candidate_score(article, query), _published_timestamp(article)),
-    )
-
-
-def _candidate_score(article: ArticleRecord, query: str) -> float:
-    text = f"{article.title} {article.snippet} {article.article_text}".lower()
-    query_matches = sum(
-        1 for token in dict.fromkeys(_important_query_tokens(query)) if token in text
-    )
-    detail_score = min(len(" ".join([article.title, article.snippet]).split()) / 40, 2)
-    recency_score = _recency_score(article)
-    return (query_matches * 3) + detail_score + recency_score
-
-
-def _important_query_tokens(query: str) -> list[str]:
-    return re.findall(r"[a-zA-Z][a-zA-Z'-]{3,}", query.lower())
-
-
-def _recency_score(article: ArticleRecord) -> float:
-    if not article.published_at:
-        return 0.0
-    try:
-        published_at = datetime.fromisoformat(article.published_at)
-    except ValueError:
-        return 0.0
-    age_days = max((datetime.now().astimezone() - published_at.astimezone()).days, 0)
-    if age_days <= 1:
-        return 2.0
-    if age_days <= 7:
-        return 1.0
-    if age_days <= 30:
-        return 0.5
-    return 0.0
-
-
-def _published_timestamp(article: ArticleRecord) -> float:
-    if not article.published_at:
-        return 0.0
-    try:
-        return datetime.fromisoformat(article.published_at).timestamp()
-    except ValueError:
-        return 0.0

@@ -165,7 +165,11 @@ class ServiceTests(unittest.TestCase):
             model=ModelConfig(
                 backend="heuristic",
                 api_key_env="",
-                research_model_id="",
+                question_analysis_model_id="heuristic",
+                query_planning_model_id="heuristic",
+                candidate_filter_model_id="heuristic",
+                article_selection_model_id="heuristic",
+                metric_extraction_model_id="heuristic",
                 summary_model_id="heuristic",
                 max_output_tokens=0,
                 temperature=0.0,
@@ -195,7 +199,6 @@ class ServiceTests(unittest.TestCase):
                 )
             ],
             config_path=Path("config/news_agent_free.yaml"),
-            fallback_to_heuristic=False,
         )
 
     def test_research_service_delegates_to_one_search_client(self) -> None:

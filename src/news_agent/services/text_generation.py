@@ -50,13 +50,15 @@ class OpenAIResponsesTextGenerator(TextGenerator):
         self.client = OpenAI(api_key=api_key)
 
     def generate(self, prompt: str) -> GenerationResult:
+        request_kwargs: dict[str, Any] = {
+            "model": self.model_id,
+            "input": prompt,
+            "max_output_tokens": self.config.max_output_tokens,
+        }
+        if openai_supports_temperature(self.model_id):
+            request_kwargs["temperature"] = self.config.temperature
         try:
-            response = self.client.responses.create(
-                model=self.model_id,
-                input=prompt,
-                temperature=self.config.temperature,
-                max_output_tokens=self.config.max_output_tokens,
-            )
+            response = self.client.responses.create(**request_kwargs)
         except Exception as exc:
             raise ModelGenerationError(
                 f"OpenAI response generation failed for model `{self.model_id}`: {exc}"
@@ -193,6 +195,17 @@ def build_text_generator(config: ModelConfig, model_id: str | None = None) -> Te
     if config.backend != "openai":
         raise ModelGenerationError(f"Unsupported backend: {config.backend}")
     return OpenAIResponsesTextGenerator(config=config, model_id=selected_model_id)
+
+
+def openai_supports_temperature(model_id: str) -> bool:
+    """Return whether this OpenAI model family accepts a temperature parameter."""
+    normalized = model_id.strip().lower()
+    return not (
+        normalized.startswith("gpt-5")
+        or normalized.startswith("o1")
+        or normalized.startswith("o3")
+        or normalized.startswith("o4")
+    )
 
 
 def _resolve_gemini_api_key(config: ModelConfig) -> str | None:

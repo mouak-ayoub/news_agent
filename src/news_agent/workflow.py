@@ -10,6 +10,7 @@ from .agents.agent_builder import AgentGraphBuilder
 from .models.config import AppConfig
 from .models.triage import TriageBrief
 from .services.article_content_fetcher import ArticleContentFetcher
+from .services.debug_output import DebugOutput
 from .services.metric_extractor import MetricExtractor
 from .services.prompt_service import PromptService
 from .services.query_planner import QueryPlanner
@@ -26,32 +27,45 @@ def run_triage(
     query: str,
     config: AppConfig,
     *,
+    debug_output: DebugOutput | None = None,
     research_service: ResearchService | None = None,
     summarization_service: SummarizationService | None = None,
 ) -> TriageBrief:
     prompt_service = PromptService()
     if research_service is None:
-        research_text_generator = build_text_generator(
-            config.model,
-            model_id=config.model.research_model_id or config.model.summary_model_id,
-        )
         research_service = ResearchService(
-            client=build_search_client(config, prompt_service=prompt_service),
+            client=build_search_client(
+                config,
+                prompt_service=prompt_service,
+                debug_output=debug_output,
+            ),
             question_analyzer=QuestionAnalyzer(
                 config=config,
-                text_generator=research_text_generator,
+                text_generator=build_text_generator(
+                    config.model,
+                    model_id=config.model.model_id_for_step("question_analysis"),
+                ),
                 prompt_service=prompt_service,
+                debug_output=debug_output,
             ),
             query_planner=QueryPlanner(
                 config=config,
-                text_generator=research_text_generator,
+                text_generator=build_text_generator(
+                    config.model,
+                    model_id=config.model.model_id_for_step("query_planning"),
+                ),
                 prompt_service=prompt_service,
+                debug_output=debug_output,
             ),
             article_content_fetcher=ArticleContentFetcher(config),
             metric_extractor=MetricExtractor(
                 config=config,
-                text_generator=research_text_generator,
+                text_generator=build_text_generator(
+                    config.model,
+                    model_id=config.model.model_id_for_step("metric_extraction"),
+                ),
                 prompt_service=prompt_service,
+                debug_output=debug_output,
             ),
         )
     if summarization_service is None:
@@ -59,9 +73,10 @@ def run_triage(
             config=config,
             text_generator=build_text_generator(
                 config.model,
-                model_id=config.model.summary_model_id,
+                model_id=config.model.model_id_for_step("summarization"),
             ),
             prompt_service=prompt_service,
+            debug_output=debug_output,
         )
 
     session_service = InMemorySessionService()

@@ -1,0 +1,51 @@
+Return JSON only. Do not expose chain-of-thought.
+
+Task:
+Use a Tree-of-Thought style web-search strategy internally, then return only selected article candidates.
+
+Internally explore these search branches:
+1. Metric-first branch: search for articles that directly report the requested number, count, date, amount, rate, or list.
+2. Outlet-comparison branch: search outlet by outlet so the result can compare framing across sources.
+3. Official-source branch: search for articles citing official statements, ministries, militaries, regulators, companies, courts, or other authoritative sources relevant to the query.
+
+After exploring branches, choose the strongest candidates:
+- direct metric evidence beats broad relevance
+- article body likely containing the requested metric beats title-only hints
+- one strong older tracker beats a newer weak analysis article
+- at most one article per outlet
+- skip outlets with no useful candidate
+- reject articles from domains not listed for the outlet
+
+Output rules:
+- return a JSON array only
+- use only the curated outlets below
+- return up to {outlet_limit} articles
+- keep `article_text` to one concise evidence sentence
+- include the internal branch label but not the reasoning
+
+For each object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+- selected_branch: one of ["metric_first", "outlet_comparison", "official_source"]
+- topic_match_score: integer 0-5
+- metric_match_score: integer 0-5
+- recency_score: integer 0-5
+- selection_reason: short sentence
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+Query:
+{query}

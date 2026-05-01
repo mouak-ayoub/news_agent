@@ -19,6 +19,7 @@ from ...models.research import SearchPlan
 from ...models.triage import ArticleRecord
 from ...models.triage import ResearchBundle
 from ..article_content_fetcher import ArticleContentFetcher
+from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
 from .article_selector import ArticleSelector
 
@@ -77,6 +78,7 @@ class GoogleNewsRssSearchClient:
         self,
         config: AppConfig,
         prompt_service: PromptService | None = None,
+        debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.search_config = config.search
@@ -85,6 +87,7 @@ class GoogleNewsRssSearchClient:
         self.article_selector = ArticleSelector(
             config=config,
             prompt_service=self.prompt_service,
+            debug_output=debug_output,
         )
         self.article_content_fetcher = ArticleContentFetcher(config)
         self.session = requests.Session()

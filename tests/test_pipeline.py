@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 import unittest
 
 from news_agent.workflow import run_triage
@@ -10,10 +11,12 @@ from news_agent.models.config import OutletConfig
 from news_agent.models.config import SearchConfig
 from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
+from news_agent.services.debug_output import DebugOutput
 from news_agent.services.summarization import SummarizationService
 from news_agent.services.text_generation import ModelGenerationError
 from news_agent.services.text_generation import ModelOutputError
 from news_agent.services.text_generation import StaticTextGenerator
+from news_agent.services.text_generation import openai_supports_temperature
 
 
 class FailingTextGenerator:
@@ -35,7 +38,11 @@ class PipelineTests(unittest.TestCase):
             model=ModelConfig(
                 backend="openai",
                 api_key_env="NEWS_AGENT_KEY",
-                research_model_id="gpt-4.1",
+                question_analysis_model_id="gpt-4.1",
+                query_planning_model_id="gpt-4.1",
+                candidate_filter_model_id="gpt-4.1",
+                article_selection_model_id="gpt-4.1",
+                metric_extraction_model_id="gpt-4.1",
                 summary_model_id="gpt-5-mini",
                 max_output_tokens=256,
                 temperature=0.2,
@@ -57,7 +64,6 @@ class PipelineTests(unittest.TestCase):
                 )
             ],
             config_path=Path("config/news_agent_openai.yaml"),
-            fallback_to_heuristic=False,
         )
         self.articles = [
             ArticleRecord(
@@ -138,26 +144,6 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(brief.source_findings[0].outlet_name, "CNN")
         self.assertIn("framed differently", brief.final_brief)
 
-    def test_heuristic_fallback_returns_safe_output(self) -> None:
-        self.config.fallback_to_heuristic = True
-        research_service = FakeResearchService(self.articles[:1])
-        summarization_service = SummarizationService(
-            config=self.config,
-            text_generator=StaticTextGenerator("not json"),
-        )
-
-        brief = run_triage(
-            "Did the escalation really happen?",
-            self.config,
-            research_service=research_service,
-            summarization_service=summarization_service,
-        )
-
-        self.assertEqual(brief.query, "Did the escalation really happen?")
-        self.assertTrue(brief.uncertainties)
-        self.assertTrue(brief.fact_inference_speculation.speculation)
-        self.assertEqual(len(brief.source_findings), 1)
-
     def test_external_backend_bad_output_stops_instead_of_falling_back(self) -> None:
         summarization_service = SummarizationService(
             config=self.config,
@@ -184,6 +170,46 @@ class PipelineTests(unittest.TestCase):
                 "Did the provider fail?",
                 ResearchBundle(query="Did the provider fail?", articles=self.articles[:1]),
             )
+
+    def test_debug_output_records_model_input_and_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summarization_service = SummarizationService(
+                config=self.config,
+                text_generator=StaticTextGenerator(
+                    """
+                    {
+                      "query": "placeholder",
+                      "main_claims": [],
+                      "entities": {},
+                      "source_profiles": [],
+                      "source_findings": [],
+                      "framing_analysis": [],
+                      "historical_context": [],
+                      "uncertainties": [],
+                      "fact_inference_speculation": {},
+                      "final_brief": "Debug test brief."
+                    }
+                    """
+                ),
+                debug_output=DebugOutput(Path(tmp_dir)),
+            )
+
+            summarization_service.summarize(
+                "What changed?",
+                ResearchBundle(query="What changed?", articles=self.articles[:1]),
+            )
+
+            call_dirs = sorted((Path(tmp_dir) / "model_calls").iterdir())
+            self.assertEqual(len(call_dirs), 1)
+            self.assertTrue((call_dirs[0] / "input.txt").exists())
+            self.assertTrue((call_dirs[0] / "output.txt").exists())
+            self.assertIn("What changed?", (call_dirs[0] / "input.txt").read_text())
+            self.assertIn("Debug test brief", (call_dirs[0] / "output.txt").read_text())
+
+    def test_gpt5_family_omits_temperature(self) -> None:
+        self.assertFalse(openai_supports_temperature("gpt-5"))
+        self.assertFalse(openai_supports_temperature("gpt-5-mini"))
+        self.assertTrue(openai_supports_temperature("gpt-4.1"))
 
 
 if __name__ == "__main__":

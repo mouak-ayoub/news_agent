@@ -1,0 +1,73 @@
+Return JSON only. Do not expose chain-of-thought.
+
+Task:
+Search the web for article candidates from the curated outlets.
+Think internally before answering, but return only the JSON array.
+
+Retrieval rules:
+- First retrieve candidates, then evaluate them.
+- Use keyword-style search queries, not only the raw natural-language user question.
+- Use the planned search queries as the primary search inputs.
+- Prefer short search-engine queries containing:
+  - topic entities
+  - requested metric words
+  - outlet domain filters
+- For outlet-focused retrieval, prefer:
+  <planned query> site:<outlet domain>
+- For broad retrieval across curated outlets, prefer:
+  <planned query> site:domain1 OR site:domain2 OR site:domain3
+- Do not use the full user question as the only web search query.
+- A weak retrieved candidate is better than returning an empty array.
+- Return [] only when no curated outlet has any article with meaningful topical relevance after trying planned keyword queries.
+
+Internal selection checklist:
+1. Identify the requested topic, requested answer, answer type, time window, and required evidence from the user query.
+2. Prefer articles whose title/snippet/body likely contains the requested answer, not just broad background.
+3. Match the evidence type to the question:
+   - numeric questions need explicit numbers, counts, totals, rates, or figures
+   - date/release questions need official dates, schedules, or credible reported windows
+   - forecast/opinion questions need explicit analysis, forecasts, expert views, probabilities, or outlet interpretation
+   - diplomacy/policy questions need official statements, negotiations, decisions, sanctions, agreements, or direct quotes
+   - election questions need results, polls, official electoral data, candidate statements, or live updates
+   - claim-check questions need verification, denial, correction, or contextual evidence
+4. Prefer recent articles from the last {days_back} days, but allow older articles when they are the clearest direct source.
+5. Return at most one article per outlet. If one outlet has several candidates, choose the strongest answer match.
+6. Reject articles from domains not listed for the outlet.
+7. If an article provides a relevant actor, place, number, official claim, quote, or consequence, keep it as a candidate.
+
+Output rules:
+- return a JSON array only
+- use only the curated outlets below
+- return up to {outlet_limit} articles
+- include no explanations outside JSON
+- keep `article_text` to one concise evidence sentence, not a full article
+- include compact scoring fields so downstream code can inspect why the article was selected
+
+For each object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+- answer_type
+- requested_answer
+- topic_match_score: integer 0-5
+- answer_match_score: integer 0-5
+- evidence_match_score: integer 0-5
+- recency_score: integer 0-5
+- selection_reason: short sentence
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+Query:
+{query}
