@@ -7,18 +7,12 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from .agents.agent_builder import AgentGraphBuilder
+from .bootstrap.container import build_application_container
 from .models.config import AppConfig
 from .models.triage import TriageBrief
-from .services.article_content_fetcher import ArticleContentFetcher
 from .services.debug_output import DebugOutput
-from .services.metric_extractor import MetricExtractor
-from .services.prompt_service import PromptService
-from .services.query_planner import QueryPlanner
-from .services.question_analyzer import QuestionAnalyzer
 from .services.research import ResearchService
-from .services.search import build_search_client
 from .services.summarization import SummarizationService
-from .services.text_generation import build_text_generator
 
 APP_NAME = "agents"
 
@@ -31,52 +25,14 @@ def run_triage(
     research_service: ResearchService | None = None,
     summarization_service: SummarizationService | None = None,
 ) -> TriageBrief:
-    prompt_service = PromptService()
-    if research_service is None:
-        research_service = ResearchService(
-            client=build_search_client(
-                config,
-                prompt_service=prompt_service,
-                debug_output=debug_output,
-            ),
-            question_analyzer=QuestionAnalyzer(
-                config=config,
-                text_generator=build_text_generator(
-                    config.model,
-                    model_id=config.model.model_id_for_step("question_analysis"),
-                ),
-                prompt_service=prompt_service,
-                debug_output=debug_output,
-            ),
-            query_planner=QueryPlanner(
-                config=config,
-                text_generator=build_text_generator(
-                    config.model,
-                    model_id=config.model.model_id_for_step("query_planning"),
-                ),
-                prompt_service=prompt_service,
-                debug_output=debug_output,
-            ),
-            article_content_fetcher=ArticleContentFetcher(config),
-            metric_extractor=MetricExtractor(
-                config=config,
-                text_generator=build_text_generator(
-                    config.model,
-                    model_id=config.model.model_id_for_step("metric_extraction"),
-                ),
-                prompt_service=prompt_service,
-                debug_output=debug_output,
-            ),
-        )
-    if summarization_service is None:
-        summarization_service = SummarizationService(
+    if research_service is None or summarization_service is None:
+        container = build_application_container(
             config=config,
-            text_generator=build_text_generator(
-                config.model,
-                model_id=config.model.model_id_for_step("summarization"),
-            ),
-            prompt_service=prompt_service,
             debug_output=debug_output,
+        )
+        research_service = research_service or container.research_service
+        summarization_service = (
+            summarization_service or container.summarization_service
         )
 
     session_service = InMemorySessionService()

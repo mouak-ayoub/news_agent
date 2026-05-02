@@ -53,6 +53,8 @@ class SearchConfig:
     web_search_prompt: str = "web_search_research"
     web_search_model_id: str = ""
     web_search_reasoning_effort: str = ""
+    web_search_max_tool_calls: int = 1
+    web_search_text_verbosity: str = "low"
 
 
 @dataclass(slots=True)

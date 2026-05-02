@@ -173,7 +173,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.model.summary_model_id, "gemma-4-31b-it")
         self.assertEqual(config.search.provider, "openai_web_search")
         self.assertEqual(config.search.api_key_env, "openai_news_api")
-        self.assertEqual(config.search.web_search_model_id, "gpt-4.1")
+        self.assertEqual(config.search.web_search_model_id, "gpt-5.4-mini")
+        self.assertEqual(config.search.web_search_reasoning_effort, "none")
+        self.assertEqual(config.search.web_search_max_tool_calls, 1)
+        self.assertEqual(config.search.web_search_text_verbosity, "low")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from datetime import timedelta
+import json
 from pathlib import Path
 import unittest
 
@@ -15,9 +16,13 @@ from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.services.research import ResearchService
 from news_agent.services.search import build_search_client
-from news_agent.services.search.openai import _build_search_jobs
-from news_agent.services.search.openai import _clean_article_url
+from news_agent.services.search.openai_article_normalizer import OpenAIArticleNormalizer
+from news_agent.services.search.openai_gateway import _create_openai_response
+from news_agent.services.search.openai_gateway import _extract_openai_response_text
+from news_agent.services.search.openai_gateway import _raise_for_incomplete_openai_response
+from news_agent.services.search.openai_job_planner import OpenAISearchJobPlanner
 from news_agent.services.search.rss import GoogleNewsRssSearchClient
+from news_agent.services.text_generation import ModelOutputError
 
 
 class FakeSearchClient:
@@ -97,6 +102,34 @@ class FakeArticleSelector:
         if self.selected_index >= len(candidates):
             return candidates[-1]
         return candidates[self.selected_index]
+
+
+class FakeRawResponse:
+    def __init__(self, body: dict[str, object]) -> None:
+        self.text = json.dumps(body)
+
+
+class FakeRawResponses:
+    def __init__(self, body: dict[str, object]) -> None:
+        self.body = body
+        self.create_kwargs: dict[str, object] | None = None
+
+    def create(self, **kwargs: object) -> FakeRawResponse:
+        self.create_kwargs = kwargs
+        return FakeRawResponse(self.body)
+
+
+class FakeResponses:
+    def __init__(self, body: dict[str, object]) -> None:
+        self.with_raw_response = FakeRawResponses(body)
+
+    def create(self, **kwargs: object) -> object:
+        raise AssertionError("raw response path should be used")
+
+
+class FakeOpenAIClient:
+    def __init__(self, body: dict[str, object]) -> None:
+        self.responses = FakeResponses(body)
 
 
 class FakeRssSearchClient(GoogleNewsRssSearchClient):
@@ -330,14 +363,14 @@ class ServiceTests(unittest.TestCase):
         self.assertIsNone(article)
 
     def test_openai_url_cleaner_accepts_markdown_links(self) -> None:
-        url = _clean_article_url(
+        url = OpenAIArticleNormalizer().clean_article_url(
             "[https://www.reuters.com/world/example](https://www.reuters.com/world/example)"
         )
 
         self.assertEqual(url, "https://www.reuters.com/world/example")
 
     def test_openai_search_jobs_add_site_filters_and_prefer_keyword_query(self) -> None:
-        jobs = _build_search_jobs(
+        jobs = OpenAISearchJobPlanner().build_jobs(
             query="What are the latest casualty figures?",
             plan=SearchPlan(
                 queries=[
@@ -369,7 +402,7 @@ class ServiceTests(unittest.TestCase):
             for index in range(6)
         ]
 
-        jobs = _build_search_jobs(
+        jobs = OpenAISearchJobPlanner().build_jobs(
             query="What are the latest casualty figures?",
             plan=SearchPlan(queries=["Iran USA conflict latest casualty figures"]),
             outlets=outlets,
@@ -394,7 +427,7 @@ class ServiceTests(unittest.TestCase):
             for index in range(6)
         ]
 
-        jobs = _build_search_jobs(
+        jobs = OpenAISearchJobPlanner().build_jobs(
             query="What are the latest casualty figures?",
             plan=SearchPlan(queries=["Iran USA conflict latest casualty figures"]),
             outlets=outlets,
@@ -403,6 +436,108 @@ class ServiceTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 7)
         self.assertEqual([len(job.outlets) for job in jobs], [6, 1, 1, 1, 1, 1, 1])
+
+    def test_openai_normalizer_rejects_wrong_domain(self) -> None:
+        articles = OpenAIArticleNormalizer().normalize(
+            [
+                {
+                    "title": "Wrong outlet",
+                    "url": "https://cnn.com/world/example",
+                    "outlet_name": "Reuters",
+                    "domain": "cnn.com",
+                }
+            ],
+            allowed_outlets=(self.config.outlets[0],),
+        )
+
+        self.assertEqual(articles, [])
+
+    def test_openai_normalizer_preserves_retrieval_metadata(self) -> None:
+        articles = OpenAIArticleNormalizer().normalize(
+            [
+                {
+                    "title": "Relevant result",
+                    "url": "https://www.example.com/world/example",
+                    "outlet_name": "Example",
+                    "domain": "example.com",
+                    "published_at": "2026-05-01",
+                    "snippet": "Snippet",
+                    "article_text": "Evidence sentence.",
+                    "search_query": "query",
+                    "answer_match_score": 5,
+                    "evidence_match_score": 4,
+                    "selection_reason": "Direct metric evidence.",
+                }
+            ],
+            allowed_outlets=(self.config.outlets[0],),
+        )
+
+        self.assertEqual(len(articles), 1)
+        self.assertEqual(articles[0].url, "https://www.example.com/world/example")
+        self.assertEqual(articles[0].retrieval_metadata["answer_match_score"], 5)
+        self.assertEqual(
+            articles[0].retrieval_metadata["selection_reason"],
+            "Direct metric evidence.",
+        )
+
+    def test_openai_raw_response_path_preserves_reasoning_effort(self) -> None:
+        body = {
+            "output": [
+                {
+                    "id": "rs_1",
+                    "type": "reasoning",
+                    "summary": [],
+                    "status": "completed",
+                },
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": '[{"title":"Example","url":"https://example.com/a"}]',
+                        }
+                    ],
+                },
+            ]
+        }
+        client = FakeOpenAIClient(body)
+
+        response = _create_openai_response(
+            client,
+            {
+                "model": "gpt-5.4-mini",
+                "input": "prompt",
+                "tools": [{"type": "web_search"}],
+                "reasoning": {"effort": "high"},
+            },
+        )
+
+        self.assertEqual(response, body)
+        raw_kwargs = client.responses.with_raw_response.create_kwargs
+        self.assertIsNotNone(raw_kwargs)
+        assert raw_kwargs is not None
+        self.assertEqual(raw_kwargs["reasoning"], {"effort": "high"})
+        self.assertEqual(
+            _extract_openai_response_text(response),
+            '[{"title":"Example","url":"https://example.com/a"}]',
+        )
+
+    def test_openai_incomplete_response_reports_token_usage(self) -> None:
+        with self.assertRaisesRegex(
+            ModelOutputError,
+            "max_output_tokens.*reasoning_tokens=9709",
+        ):
+            _raise_for_incomplete_openai_response(
+                {
+                    "status": "incomplete",
+                    "incomplete_details": {"reason": "max_output_tokens"},
+                    "usage": {
+                        "output_tokens": 10000,
+                        "output_tokens_details": {"reasoning_tokens": 9709},
+                    },
+                }
+            )
 
 
 if __name__ == "__main__":
