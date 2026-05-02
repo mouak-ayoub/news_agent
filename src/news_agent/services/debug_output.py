@@ -81,9 +81,11 @@ class DebugOutput:
 
 
 def create_debug_output(query: str, project_root: Path) -> DebugOutput:
-    """Create one timestamped debug folder for a single run."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = project_root / "debug_output" / f"{timestamp}_{_slugify(query)}"
+    """Create one timestamped debug folder under the current day."""
+    now = datetime.now()
+    day_dir = project_root / "debug_output" / now.strftime("%Y-%m-%d")
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    run_dir = day_dir / f"{timestamp}_{_slugify(query)}"
     debug_output = DebugOutput(run_dir)
     debug_output.write_json("git_fingerprint.json", git_fingerprint(project_root))
     return debug_output

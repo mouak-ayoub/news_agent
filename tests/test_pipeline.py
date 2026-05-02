@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 import tempfile
 import unittest
@@ -213,6 +214,10 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             debug_output = create_debug_output("What changed?", Path(tmp_dir))
 
+            self.assertEqual(
+                debug_output.run_dir.parent.name,
+                datetime.now().strftime("%Y-%m-%d"),
+            )
             self.assertTrue((debug_output.run_dir / "git_fingerprint.json").exists())
 
     def test_gpt5_family_omits_temperature(self) -> None:
