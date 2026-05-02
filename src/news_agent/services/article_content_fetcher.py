@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class ArticleContentFetcher:
-    """Best-effort article body fetch after search has selected candidate URLs."""
+    """Best-effort article body fetch for candidate URLs."""
 
     def __init__(self, config: AppConfig) -> None:
         self.config = config

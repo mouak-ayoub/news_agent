@@ -5,10 +5,25 @@ import json
 import os
 from typing import Any
 
+from ..debug_output import DebugOutput
 from ..text_generation import ModelGenerationError
 from ..text_generation import ModelOutputError
 from ..text_generation import openai_supports_reasoning_effort
 from ..text_generation import openai_supports_temperature
+
+
+@dataclass(frozen=True, slots=True)
+class OpenAIWebSearchRequest:
+    call_name: str
+    prompt: str
+    search_query: str
+    outlet_names: tuple[str, ...]
+    model_id: str
+    max_output_tokens: int
+    temperature: float
+    reasoning_effort: str = ""
+    max_tool_calls: int = 0
+    text_verbosity: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,47 +51,39 @@ class OpenAIWebSearchGateway:
             ) from exc
         self.client: Any = OpenAI(api_key=api_key)
 
-    def search(
-        self,
-        *,
-        prompt: str,
-        model_id: str,
-        max_output_tokens: int,
-        temperature: float,
-        reasoning_effort: str = "",
-        max_tool_calls: int = 0,
-        text_verbosity: str = "",
-    ) -> OpenAIWebSearchResponse:
-        if not model_id:
+    def search(self, request: OpenAIWebSearchRequest) -> OpenAIWebSearchResponse:
+        if not request.model_id:
             raise ModelGenerationError(
                 "OpenAI web search requires `search.web_search_model_id`."
             )
 
         request_kwargs: dict[str, Any] = {
-            "model": model_id,
+            "model": request.model_id,
             "tools": [{"type": "web_search"}],
-            "input": prompt,
-            "max_output_tokens": max_output_tokens,
+            "input": request.prompt,
+            "max_output_tokens": request.max_output_tokens,
         }
-        normalized_max_tool_calls = max(0, int(max_tool_calls))
+        normalized_max_tool_calls = max(0, int(request.max_tool_calls))
         if normalized_max_tool_calls:
             request_kwargs["max_tool_calls"] = normalized_max_tool_calls
 
-        normalized_text_verbosity = _normalize_text_verbosity(text_verbosity)
-        if normalized_text_verbosity and _openai_supports_text_verbosity(model_id):
+        normalized_text_verbosity = _normalize_text_verbosity(request.text_verbosity)
+        if normalized_text_verbosity and _openai_supports_text_verbosity(request.model_id):
             request_kwargs["text"] = {"verbosity": normalized_text_verbosity}
 
-        normalized_reasoning_effort = _normalize_reasoning_effort(reasoning_effort)
+        normalized_reasoning_effort = _normalize_reasoning_effort(
+            request.reasoning_effort
+        )
         if normalized_reasoning_effort:
-            if not openai_supports_reasoning_effort(model_id):
+            if not openai_supports_reasoning_effort(request.model_id):
                 raise ModelGenerationError(
                     "`search.web_search_reasoning_effort` is configured, "
-                    f"but `{model_id}` does not support reasoning effort."
+                    f"but `{request.model_id}` does not support reasoning effort."
                 )
             request_kwargs["reasoning"] = {"effort": normalized_reasoning_effort}
 
-        if openai_supports_temperature(model_id):
-            request_kwargs["temperature"] = temperature
+        if openai_supports_temperature(request.model_id):
+            request_kwargs["temperature"] = request.temperature
 
         response = _create_openai_response(self.client, request_kwargs)
         response_dump = _serialize_openai_response(response)
@@ -91,6 +98,43 @@ class OpenAIWebSearchGateway:
             raw_text=raw_text,
             response_dump=response_dump,
         )
+
+
+class DebuggingOpenAIWebSearchGateway:
+    """Decorator that writes OpenAI web-search request and response artifacts."""
+
+    def __init__(
+        self,
+        inner: OpenAIWebSearchGateway,
+        debug_output: DebugOutput,
+    ) -> None:
+        self.inner = inner
+        self.debug_output = debug_output
+
+    def search(self, request: OpenAIWebSearchRequest) -> OpenAIWebSearchResponse:
+        debug_call = self.debug_output.start_model_call(
+            request.call_name,
+            request.prompt,
+        )
+        try:
+            debug_call.write_artifact(
+                "search_job.json",
+                json.dumps(
+                    {
+                        "search_query": request.search_query,
+                        "outlets": list(request.outlet_names),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+            )
+            response = self.inner.search(request)
+            debug_call.write_artifact("response.json", response.response_dump)
+            debug_call.write_output(response.raw_text)
+            return response
+        except Exception as exc:
+            debug_call.write_error(exc)
+            raise
 
 
 def _normalize_reasoning_effort(value: str) -> str:
@@ -214,4 +258,3 @@ def _field(value: Any, name: str, default: Any = None) -> Any:
     if isinstance(value, dict):
         return value.get(name, default)
     return getattr(value, name, default)
-

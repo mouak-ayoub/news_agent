@@ -4,6 +4,7 @@ from datetime import datetime
 from datetime import timedelta
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 from news_agent.models.config import AppConfig
@@ -15,8 +16,12 @@ from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.services.research import ResearchService
+from news_agent.services.debug_output import DebugOutput
 from news_agent.services.search import build_search_client
 from news_agent.services.search.openai_article_normalizer import OpenAIArticleNormalizer
+from news_agent.services.search.openai_gateway import DebuggingOpenAIWebSearchGateway
+from news_agent.services.search.openai_gateway import OpenAIWebSearchRequest
+from news_agent.services.search.openai_gateway import OpenAIWebSearchResponse
 from news_agent.services.search.openai_gateway import _create_openai_response
 from news_agent.services.search.openai_gateway import _extract_openai_response_text
 from news_agent.services.search.openai_gateway import _raise_for_incomplete_openai_response
@@ -26,36 +31,36 @@ from news_agent.services.text_generation import ModelOutputError
 
 
 class FakeSearchClient:
-    def __init__(self) -> None:
+    def __init__(self, articles: list[ArticleRecord] | None = None) -> None:
         self.received_plan: SearchPlan | None = None
         self.received_intent: ResearchIntent | None = None
+        self.articles = articles or [
+            ArticleRecord(
+                title="Example title",
+                url="https://example.com/news",
+                outlet_name="Example",
+                domain="example.com",
+                country="France",
+                medium_type="newspaper",
+                orientation="center",
+                published_at=None,
+                snippet="Example snippet",
+                article_text="Example article text",
+                search_query="query",
+            )
+        ]
 
-    def search(
+    def search_candidates(
         self,
         query: str,
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
-    ) -> ResearchBundle:
+    ) -> list[ArticleRecord]:
         self.received_plan = plan
         self.received_intent = intent
-        return ResearchBundle(
-            query=query,
-            articles=[
-                ArticleRecord(
-                    title="Example title",
-                    url="https://example.com/news",
-                    outlet_name="Example",
-                    domain="example.com",
-                    country="France",
-                    medium_type="newspaper",
-                    orientation="center",
-                    published_at=None,
-                    snippet="Example snippet",
-                    article_text="Example article text",
-                    search_query=query,
-                )
-            ],
-        )
+        for article in self.articles:
+            article.search_query = query
+        return list(self.articles)
 
 
 class FakeQuestionAnalyzer:
@@ -103,6 +108,29 @@ class FakeArticleSelector:
             return candidates[-1]
         return candidates[self.selected_index]
 
+    def choose_one_per_outlet(
+        self,
+        query: str,
+        outlets: list[OutletConfig],
+        candidates: list[ArticleRecord],
+        intent: ResearchIntent | None = None,
+    ) -> list[ArticleRecord]:
+        selected: list[ArticleRecord] = []
+        for outlet in outlets:
+            article = self.choose_best_article(
+                query,
+                outlet,
+                [
+                    candidate
+                    for candidate in candidates
+                    if candidate.outlet_name == outlet.name
+                ],
+                intent=intent,
+            )
+            if article:
+                selected.append(article)
+        return selected
+
 
 class FakeRawResponse:
     def __init__(self, body: dict[str, object]) -> None:
@@ -130,6 +158,18 @@ class FakeResponses:
 class FakeOpenAIClient:
     def __init__(self, body: dict[str, object]) -> None:
         self.responses = FakeResponses(body)
+
+
+class FakeOpenAIWebSearchGateway:
+    def __init__(self) -> None:
+        self.request: OpenAIWebSearchRequest | None = None
+
+    def search(self, request: OpenAIWebSearchRequest) -> OpenAIWebSearchResponse:
+        self.request = request
+        return OpenAIWebSearchResponse(
+            raw_text='[{"title":"Example","url":"https://example.com/a"}]',
+            response_dump='{"status":"completed"}',
+        )
 
 
 class FakeRssSearchClient(GoogleNewsRssSearchClient):
@@ -263,6 +303,53 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(bundle.articles[0].metric_found)
         self.assertEqual(bundle.articles[0].metric_value, "3 laws")
 
+    def test_research_service_selects_articles_after_candidate_retrieval(self) -> None:
+        article_selector = FakeArticleSelector(selected_index=1)
+        client = FakeSearchClient(
+            articles=[
+                ArticleRecord(
+                    title="First candidate",
+                    url="https://example.com/first",
+                    outlet_name="Example",
+                    domain="example.com",
+                    country="France",
+                    medium_type="newspaper",
+                    orientation="center",
+                    published_at=None,
+                    snippet="First snippet",
+                    article_text="First article text",
+                    search_query="query",
+                ),
+                ArticleRecord(
+                    title="Second candidate",
+                    url="https://example.com/second",
+                    outlet_name="Example",
+                    domain="example.com",
+                    country="France",
+                    medium_type="newspaper",
+                    orientation="center",
+                    published_at=None,
+                    snippet="Second snippet",
+                    article_text="Second article text",
+                    search_query="query",
+                ),
+            ]
+        )
+        service = ResearchService(
+            client=client,
+            article_selector=article_selector,
+            outlets=self.config.outlets,
+            max_articles=self.config.search.max_sources,
+        )
+
+        bundle = service.research("Which article is best?")
+
+        self.assertEqual([article.url for article in bundle.articles], [
+            "https://example.com/second",
+        ])
+        self.assertEqual(len(article_selector.calls), 1)
+        self.assertEqual(article_selector.calls[0][1], "Example")
+
     def test_free_config_builds_rss_search_client(self) -> None:
         client = build_search_client(self.config)
 
@@ -273,22 +360,22 @@ class ServiceTests(unittest.TestCase):
             config=self.config,
         )
 
-        bundle = client.search("What are the latest verified updates on AI regulation?")
+        articles = client.search_candidates(
+            "What are the latest verified updates on AI regulation?"
+        )
 
         self.assertEqual(client.direct_calls, ["Example", "Second Example"])
-        self.assertEqual([article.outlet_name for article in bundle.articles], [
+        self.assertEqual([article.outlet_name for article in articles], [
             "Example",
             "Second Example",
         ])
-        self.assertEqual(bundle.articles[0].url, "https://example.com/direct")
+        self.assertEqual(articles[0].url, "https://example.com/direct")
         self.assertEqual(
-            bundle.articles[1].url,
+            articles[1].url,
             "https://second.example.com/fallback",
         )
 
-    def test_rss_search_uses_article_selector(self) -> None:
-        article_selector = FakeArticleSelector(selected_index=1)
-
+    def test_rss_search_outlet_returns_prefiltered_candidates(self) -> None:
         class CandidateRssSearchClient(GoogleNewsRssSearchClient):
             def _search_query(
                 self,
@@ -325,10 +412,15 @@ class ServiceTests(unittest.TestCase):
                     ),
                 ]
 
+            def _prepare_candidates(
+                self,
+                candidates: list[ArticleRecord],
+            ) -> list[ArticleRecord]:
+                return candidates
+
         client = CandidateRssSearchClient(
             config=self.config,
         )
-        client.article_selector = article_selector
 
         result = client.search_outlet(
             "What are the latest verified updates on global AI regulation?",
@@ -337,14 +429,11 @@ class ServiceTests(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].url, "https://example.com/new")
-        self.assertEqual(len(article_selector.calls), 1)
-        self.assertEqual(article_selector.calls[0][1], "Example")
 
     def test_rss_article_from_item_skips_empty_title_and_snippet(self) -> None:
         client = GoogleNewsRssSearchClient(
             config=self.config,
         )
-        client.article_selector = FakeArticleSelector()
         import xml.etree.ElementTree as ET
         from datetime import datetime
         from datetime import timedelta
@@ -479,6 +568,46 @@ class ServiceTests(unittest.TestCase):
             articles[0].retrieval_metadata["selection_reason"],
             "Direct metric evidence.",
         )
+
+    def test_openai_debug_gateway_writes_request_and_response_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            inner = FakeOpenAIWebSearchGateway()
+            gateway = DebuggingOpenAIWebSearchGateway(
+                inner,
+                DebugOutput(Path(tmp_dir)),
+            )
+
+            response = gateway.search(
+                OpenAIWebSearchRequest(
+                    call_name="openai_web_search_01",
+                    prompt="Find the latest update.",
+                    search_query="latest update site:example.com",
+                    outlet_names=("Example",),
+                    model_id="gpt-5.4-mini",
+                    max_output_tokens=256,
+                    temperature=0.0,
+                    reasoning_effort="low",
+                    max_tool_calls=1,
+                    text_verbosity="low",
+                )
+            )
+
+            call_dirs = sorted((Path(tmp_dir) / "model_calls").iterdir())
+            self.assertEqual(len(call_dirs), 1)
+            self.assertIsNotNone(inner.request)
+            self.assertEqual(
+                response.raw_text,
+                '[{"title":"Example","url":"https://example.com/a"}]',
+            )
+            self.assertTrue((call_dirs[0] / "input.txt").exists())
+            self.assertTrue((call_dirs[0] / "output.txt").exists())
+            self.assertTrue((call_dirs[0] / "search_job.json").exists())
+            self.assertTrue((call_dirs[0] / "response.json").exists())
+            search_job = json.loads(
+                (call_dirs[0] / "search_job.json").read_text()
+            )
+            self.assertEqual(search_job["search_query"], "latest update site:example.com")
+            self.assertEqual(search_job["outlets"], ["Example"])
 
     def test_openai_raw_response_path_preserves_reasoning_effort(self) -> None:
         body = {

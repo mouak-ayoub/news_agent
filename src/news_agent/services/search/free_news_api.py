@@ -15,7 +15,6 @@ from ...models.config import OutletConfig
 from ...models.research import ResearchIntent
 from ...models.research import SearchPlan
 from ...models.triage import ArticleRecord
-from ...models.triage import ResearchBundle
 from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
 from ..text_generation import ModelGenerationError
@@ -55,12 +54,12 @@ class FreeNewsApiSearchClient:
             }
         )
 
-    def search(
+    def search_candidates(
         self,
         query: str,
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
-    ) -> ResearchBundle:
+    ) -> list[ArticleRecord]:
         """Search the news API once and preserve each article's real publisher."""
         logger.info("freenewsapi search started query=%r", query)
         listing_items = self._collect_listing_items(query, plan)
@@ -85,13 +84,8 @@ class FreeNewsApiSearchClient:
                 article.title,
             )
 
-        logger.info("freenewsapi search finished selected_articles=%d", len(articles))
-        return ResearchBundle(
-            query=query,
-            articles=articles,
-            intent=intent,
-            search_plan=plan,
-        )
+        logger.info("freenewsapi search finished candidates=%d", len(articles))
+        return articles
 
     def _collect_listing_items(
         self,

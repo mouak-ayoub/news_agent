@@ -4,17 +4,17 @@ from typing import Protocol
 
 from ...models.research import ResearchIntent
 from ...models.research import SearchPlan
-from ...models.triage import ResearchBundle
+from ...models.triage import ArticleRecord
 
 
 class SearchClient(Protocol):
     """Provider strategy: fetch candidate articles for a planned research query."""
 
-    def search(
+    def search_candidates(
         self,
         query: str,
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
-    ) -> ResearchBundle:
-        """Return a research bundle for the user query."""
+    ) -> list[ArticleRecord]:
+        """Return provider-normalized article candidates for the user query."""
         ...

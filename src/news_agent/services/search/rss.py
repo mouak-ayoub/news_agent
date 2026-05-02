@@ -17,11 +17,9 @@ from ...models.config import OutletConfig
 from ...models.research import ResearchIntent
 from ...models.research import SearchPlan
 from ...models.triage import ArticleRecord
-from ...models.triage import ResearchBundle
 from ..article_content_fetcher import ArticleContentFetcher
 from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
-from .article_selector import ArticleSelector
 
 
 logger = logging.getLogger(__name__)
@@ -84,25 +82,21 @@ class GoogleNewsRssSearchClient:
         self.search_config = config.search
         self.outlets = config.outlets
         self.prompt_service = prompt_service or PromptService()
-        self.article_selector = ArticleSelector(
-            config=config,
-            prompt_service=self.prompt_service,
-            debug_output=debug_output,
-        )
+        _ = debug_output
         self.article_content_fetcher = ArticleContentFetcher(config)
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.search_config.user_agent})
 
-    def search(
+    def search_candidates(
         self,
         query: str,
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
-    ) -> ResearchBundle:
+    ) -> list[ArticleRecord]:
         """Run outlet-scoped RSS searches, with one broad RSS fallback pass."""
         outlet_limit = min(self.search_config.max_sources, len(self.outlets))
         target_outlets = self.outlets[:outlet_limit]
-        articles_by_outlet: dict[str, ArticleRecord] = {}
+        articles_by_outlet: dict[str, list[ArticleRecord]] = {}
         logger.info(
             "rss search started query=%r target_outlets=%d",
             query,
@@ -116,14 +110,14 @@ class GoogleNewsRssSearchClient:
                 logger.exception("rss outlet search failed outlet=%r", outlet.name)
                 continue
             if outlet_articles:
-                articles_by_outlet[outlet.name] = outlet_articles[0]
+                articles_by_outlet[outlet.name] = outlet_articles
                 logger.info(
-                    "rss selected outlet=%r url=%s",
+                    "rss outlet candidates outlet=%r count=%d",
                     outlet.name,
-                    outlet_articles[0].url,
+                    len(outlet_articles),
                 )
             else:
-                logger.info("rss no selected article outlet=%r", outlet.name)
+                logger.info("rss no candidates outlet=%r", outlet.name)
 
         missing_outlets = {
             outlet.name for outlet in target_outlets if outlet.name not in articles_by_outlet
@@ -133,10 +127,9 @@ class GoogleNewsRssSearchClient:
             try:
                 for article in self.search_curated(query, plan, intent):
                     if article.outlet_name in missing_outlets:
-                        articles_by_outlet[article.outlet_name] = article
-                        missing_outlets.remove(article.outlet_name)
+                        articles_by_outlet.setdefault(article.outlet_name, []).append(article)
                         logger.info(
-                            "rss fallback selected outlet=%r url=%s",
+                            "rss fallback candidate outlet=%r url=%s",
                             article.outlet_name,
                             article.url,
                         )
@@ -149,21 +142,16 @@ class GoogleNewsRssSearchClient:
                 sorted(missing_outlets),
             )
 
-        bundle = ResearchBundle(
-            query=query,
-            articles=[
-                articles_by_outlet[outlet.name]
-                for outlet in target_outlets
-                if outlet.name in articles_by_outlet
-            ],
-            intent=intent,
-            search_plan=plan,
-        )
+        articles = [
+            article
+            for outlet in target_outlets
+            for article in articles_by_outlet.get(outlet.name, [])
+        ]
         logger.info(
-            "rss search finished selected_articles=%d",
-            len(bundle.articles),
+            "rss search finished candidates=%d",
+            len(articles),
         )
-        return bundle
+        return _dedupe_articles(articles)
 
     def search_outlet(
         self,
@@ -172,7 +160,8 @@ class GoogleNewsRssSearchClient:
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
     ) -> list[ArticleRecord]:
-        """Search one outlet and return the first full-text candidate that answers."""
+        """Search one outlet and return full-text candidates."""
+        results: list[ArticleRecord] = []
         if _feed_urls(outlet):
             candidates = self._search_outlet_feed(
                 outlet=outlet,
@@ -189,20 +178,9 @@ class GoogleNewsRssSearchClient:
                 outlet.name,
                 len(candidates),
             )
-            best_article = self._choose_after_full_text(
-                query=query,
-                outlet=outlet,
-                candidates=candidates,
-                intent=intent,
-            )
-            if best_article:
-                return [best_article]
+            results.extend(self._prepare_candidates(candidates))
             if not self.search_config.allow_google_news_fallback:
-                logger.info(
-                    "rss outlet no matching direct-feed article; Google News fallback disabled outlet=%r",
-                    outlet.name,
-                )
-                return []
+                return _dedupe_articles(results)[: self.search_config.candidate_pool_size]
 
         for planned_query in _planned_queries(query, plan):
             scoped_query = (
@@ -225,33 +203,20 @@ class GoogleNewsRssSearchClient:
                 outlet.name,
                 len(candidates),
             )
-            best_article = self._choose_after_full_text(
-                query=query,
-                outlet=outlet,
-                candidates=candidates,
-                intent=intent,
-            )
-            if best_article:
-                return [best_article]
-        return []
+            results.extend(self._prepare_candidates(candidates))
+            if len(results) >= self.search_config.candidate_pool_size:
+                break
+        return _dedupe_articles(results)[: self.search_config.candidate_pool_size]
 
-    def _choose_after_full_text(
+    def _prepare_candidates(
         self,
-        query: str,
-        outlet: OutletConfig,
         candidates: list[ArticleRecord],
-        intent: ResearchIntent | None,
-    ) -> ArticleRecord | None:
-        """Read candidate pages before asking the model to select direct evidence."""
+    ) -> list[ArticleRecord]:
+        """Read candidate pages before application-level selection."""
         if not candidates:
-            return None
+            return []
         self.article_content_fetcher.enrich_articles(candidates)
-        return self.article_selector.choose_best_article(
-            query,
-            outlet,
-            candidates,
-            intent=intent,
-        )
+        return candidates
 
     def _search_outlet_feed(
         self,
@@ -304,7 +269,7 @@ class GoogleNewsRssSearchClient:
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
     ) -> list[ArticleRecord]:
-        """Fallback: broad RSS search, then select one result per configured outlet."""
+        """Fallback: broad RSS search returning configured outlet candidates."""
         logger.info("rss curated query query=%r", query)
         cutoff = datetime.now().astimezone() - timedelta(
             days=self.search_config.days_back
@@ -347,12 +312,7 @@ class GoogleNewsRssSearchClient:
         ]
         candidates = _prefilter_candidates(candidates, query, intent)
         self.article_content_fetcher.enrich_articles(candidates)
-        return self.article_selector.choose_one_per_outlet(
-            query=query,
-            outlets=self.outlets,
-            candidates=candidates,
-            intent=intent,
-        )
+        return _dedupe_articles(candidates)
 
     def _search_query(
         self,
@@ -481,6 +441,18 @@ def _prefilter_candidates(
         for article in candidates
         if _candidate_has_topic_overlap(article, tokens)
     ]
+
+
+def _dedupe_articles(articles: list[ArticleRecord]) -> list[ArticleRecord]:
+    seen: set[str] = set()
+    result: list[ArticleRecord] = []
+    for article in articles:
+        key = article.url.strip().lower() or f"{article.outlet_name}:{article.title}".lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(article)
+    return result
 
 
 def _intent_tokens(query: str, intent: ResearchIntent | None) -> set[str]:

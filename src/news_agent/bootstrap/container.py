@@ -11,6 +11,7 @@ from ..services.query_planner import QueryPlanner
 from ..services.question_analyzer import QuestionAnalyzer
 from ..services.research import ResearchService
 from ..services.search import build_search_client
+from ..services.search.article_selector import ArticleSelector
 from ..services.summarization import SummarizationService
 from ..services.text_generation import build_text_generator
 
@@ -84,6 +85,11 @@ def build_research_service(
             debug_output=debug_output,
         ),
         article_content_fetcher=ArticleContentFetcher(config),
+        article_selector=ArticleSelector(
+            config=config,
+            prompt_service=prompt_service,
+            debug_output=debug_output,
+        ),
         metric_extractor=MetricExtractor(
             config=config,
             text_generator=build_text_generator(
@@ -93,6 +99,8 @@ def build_research_service(
             prompt_service=prompt_service,
             debug_output=debug_output,
         ),
+        outlets=config.outlets[: config.search.max_sources],
+        max_articles=config.search.max_sources,
     )
 
 
