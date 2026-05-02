@@ -70,7 +70,7 @@ def _parse_pub_date(value: str | None) -> datetime | None:
 
 
 class GoogleNewsRssSearchClient:
-    """RSS provider: prefer direct outlet feeds, optionally fall back to Google News."""
+    """RSS provider: return candidates, enriching weak RSS snippets before selection."""
 
     def __init__(
         self,
@@ -93,7 +93,7 @@ class GoogleNewsRssSearchClient:
         plan: SearchPlan | None = None,
         intent: ResearchIntent | None = None,
     ) -> list[ArticleRecord]:
-        """Run outlet-scoped RSS searches, with one broad RSS fallback pass."""
+        """Run outlet-scoped RSS searches without doing final article selection."""
         outlet_limit = min(self.search_config.max_sources, len(self.outlets))
         target_outlets = self.outlets[:outlet_limit]
         articles_by_outlet: dict[str, list[ArticleRecord]] = {}

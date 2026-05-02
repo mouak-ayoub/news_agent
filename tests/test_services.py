@@ -18,6 +18,7 @@ from news_agent.models.triage import ResearchBundle
 from news_agent.services.research import ResearchService
 from news_agent.services.debug_output import DebugOutput
 from news_agent.services.search import build_search_client
+from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
 from news_agent.services.search.openai_article_normalizer import OpenAIArticleNormalizer
 from news_agent.services.search.openai_gateway import DebuggingOpenAIWebSearchGateway
 from news_agent.services.search.openai_gateway import OpenAIWebSearchRequest
@@ -170,6 +171,41 @@ class FakeOpenAIWebSearchGateway:
             raw_text='[{"title":"Example","url":"https://example.com/a"}]',
             response_dump='{"status":"completed"}',
         )
+
+
+class FakeFreeNewsApiSearchClient(FreeNewsApiSearchClient):
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+        self.search_config = config.search
+
+    def _collect_listing_items(
+        self,
+        query: str,
+        plan: SearchPlan | None,
+    ) -> list[dict[str, object]]:
+        _ = query, plan
+        return [{"uuid": "first"}, {"uuid": "second"}]
+
+    def _fetch_article_details(
+        self,
+        listing_items: list[dict[str, object]],
+    ) -> list[ArticleRecord]:
+        return [
+            ArticleRecord(
+                title=f"FreeNewsApi article {index}",
+                url=f"https://publisher.example.com/{index}",
+                outlet_name="Publisher",
+                domain="publisher.example.com",
+                country="global",
+                medium_type="news API / publisher",
+                orientation="unknown",
+                published_at=None,
+                snippet="Snippet",
+                article_text="Body",
+                search_query=str(item["uuid"]),
+            )
+            for index, item in enumerate(listing_items, start=1)
+        ]
 
 
 class FakeRssSearchClient(GoogleNewsRssSearchClient):
@@ -354,6 +390,22 @@ class ServiceTests(unittest.TestCase):
         client = build_search_client(self.config)
 
         self.assertIsInstance(client, GoogleNewsRssSearchClient)
+
+    def test_freenewsapi_returns_candidates_without_provider_filtering(self) -> None:
+        self.config.search.max_sources = 1
+        client = FakeFreeNewsApiSearchClient(self.config)
+
+        articles = client.search_candidates(
+            "How many AI laws were approved?",
+            intent=FakeQuestionAnalyzer().analyze("How many AI laws were approved?"),
+        )
+
+        self.assertFalse(hasattr(client, "candidate_filter"))
+        self.assertEqual(len(articles), 2)
+        self.assertEqual([article.url for article in articles], [
+            "https://publisher.example.com/1",
+            "https://publisher.example.com/2",
+        ])
 
     def test_rss_search_attempts_each_outlet_and_fills_missing_from_curated(self) -> None:
         client = FakeRssSearchClient(

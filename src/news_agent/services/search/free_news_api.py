@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 import requests
 
 from ...models.config import AppConfig
-from ...models.config import OutletConfig
 from ...models.research import ResearchIntent
 from ...models.research import SearchPlan
 from ...models.triage import ArticleRecord
@@ -19,14 +18,13 @@ from ..debug_output import DebugOutput
 from ..prompt_service import PromptService
 from ..text_generation import ModelGenerationError
 from ..text_generation import TextGenerator
-from .candidate_filter import CandidateFilter
 
 
 logger = logging.getLogger(__name__)
 
 
 class FreeNewsApiSearchClient:
-    """FreeNewsApi provider: global article search, then full-text candidate filtering."""
+    """FreeNewsApi provider: retrieve and normalize article candidates only."""
 
     def __init__(
         self,
@@ -38,14 +36,7 @@ class FreeNewsApiSearchClient:
         self.config = config
         self.search_config = config.search
         self.base_url = (self.search_config.base_url or "https://api.freenewsapi.io").rstrip("/")
-        self.prompt_service = prompt_service or PromptService()
-        self.text_generator = text_generator
-        self.candidate_filter = CandidateFilter(
-            config=config,
-            prompt_service=self.prompt_service,
-            text_generator=text_generator,
-            debug_output=debug_output,
-        )
+        _ = prompt_service, text_generator, debug_output
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -67,18 +58,10 @@ class FreeNewsApiSearchClient:
 
         articles = self._fetch_article_details(listing_items)
         logger.info("freenewsapi detail candidates count=%d", len(articles))
-        if intent is not None and articles:
-            articles = self.candidate_filter.filter(
-                query=query,
-                outlet=_api_outlet(),
-                candidates=articles,
-                intent=intent,
-            )
-
-        articles = articles[: self.search_config.max_sources]
+        _ = intent
         for article in articles:
             logger.info(
-                "freenewsapi selected publisher=%r url=%s title=%r",
+                "freenewsapi candidate publisher=%r url=%s title=%r",
                 article.outlet_name,
                 article.url,
                 article.title,
@@ -222,14 +205,3 @@ def _respect_rate_limit() -> None:
 
 def _domain_from_url(url: str) -> str:
     return urlparse(url).netloc.lower().removeprefix("www.")
-
-
-def _api_outlet() -> OutletConfig:
-    return OutletConfig(
-        name="FreeNewsApi",
-        domain="api.freenewsapi.io",
-        country="global",
-        medium_type="news API",
-        orientation="mixed",
-        notes="Global evidence search across available publishers.",
-    )
