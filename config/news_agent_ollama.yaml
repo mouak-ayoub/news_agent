@@ -16,7 +16,7 @@ search:
   provider: google_news_rss
   days_back: 90
   max_sources: 6
-  max_search_calls_per_run: 0
+  max_search_calls_per_run: 1
   candidate_pool_size: 10
   request_timeout_seconds: 12
   user_agent: "news-agent/0.1 (+local learning project)"

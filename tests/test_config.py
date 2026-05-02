@@ -7,6 +7,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from news_agent.configuration.settings import resolve_openai_web_search_settings
+from news_agent.configuration.validation import AppConfigValidator
+from news_agent.configuration.validation import ConfigValidationError
+from news_agent.models.config import AppConfig
+from news_agent.models.config import ModelConfig
+from news_agent.models.config import OutletConfig
+from news_agent.models.config import SearchConfig
 from news_agent.services.config_loader import load_app_config
 from news_agent.services.config_loader import resolve_cli_config_arg
 
@@ -35,6 +42,7 @@ class ConfigTests(unittest.TestCase):
                       days_back: 7
                       max_sources: 5
                       max_search_calls_per_run: 1
+                      web_search_model_id: gpt-5.4-mini
 
                     outlets:
                       - name: Example
@@ -74,6 +82,7 @@ class ConfigTests(unittest.TestCase):
                       days_back: 7
                       max_sources: 5
                       max_search_calls_per_run: 1
+                      web_search_model_id: gpt-5.4-mini
 
                     outlets:
                       - name: Example
@@ -130,6 +139,7 @@ class ConfigTests(unittest.TestCase):
                       days_back: 7
                       max_sources: 5
                       max_search_calls_per_run: 1
+                      web_search_model_id: gpt-5.4-mini
 
                     outlets_file: outlets/test_outlets.yaml
                     """
@@ -177,6 +187,125 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.search.web_search_reasoning_effort, "none")
         self.assertEqual(config.search.web_search_max_tool_calls, 1)
         self.assertEqual(config.search.web_search_text_verbosity, "low")
+
+    def test_openai_settings_use_search_api_key_env_when_present(self) -> None:
+        config = _app_config()
+        config.search.api_key_env = "SEARCH_KEY"
+        config.model.api_key_env = "MODEL_KEY"
+
+        settings = resolve_openai_web_search_settings(config)
+
+        self.assertEqual(settings.api_key_env, "SEARCH_KEY")
+
+    def test_openai_settings_fallback_to_model_api_key_for_openai_backend(self) -> None:
+        config = _app_config()
+        config.search.api_key_env = ""
+        config.model.backend = "openai"
+        config.model.api_key_env = "MODEL_KEY"
+
+        settings = resolve_openai_web_search_settings(config)
+
+        self.assertEqual(settings.api_key_env, "MODEL_KEY")
+
+    def test_openai_settings_fail_without_api_key_env(self) -> None:
+        config = _app_config()
+        config.search.api_key_env = ""
+        config.model.backend = "gemini"
+        config.model.api_key_env = "MODEL_KEY"
+
+        with self.assertRaisesRegex(ConfigValidationError, "api_key_env"):
+            resolve_openai_web_search_settings(config)
+
+    def test_openai_settings_fail_without_model_id(self) -> None:
+        config = _app_config()
+        config.search.web_search_model_id = ""
+
+        with self.assertRaisesRegex(ConfigValidationError, "web_search_model_id"):
+            resolve_openai_web_search_settings(config)
+
+    def test_openai_settings_copy_generation_fields(self) -> None:
+        config = _app_config()
+        config.model.max_output_tokens = 123
+        config.model.temperature = 0.4
+        config.search.web_search_reasoning_effort = "high"
+        config.search.web_search_max_tool_calls = 3
+        config.search.web_search_text_verbosity = "medium"
+
+        settings = resolve_openai_web_search_settings(config)
+
+        self.assertEqual(settings.model_id, "gpt-5.4-mini")
+        self.assertEqual(settings.max_output_tokens, 123)
+        self.assertEqual(settings.temperature, 0.4)
+        self.assertEqual(settings.reasoning_effort, "high")
+        self.assertEqual(settings.max_tool_calls, 3)
+        self.assertEqual(settings.text_verbosity, "medium")
+
+    def test_validator_fails_on_invalid_max_sources(self) -> None:
+        config = _app_config()
+        config.search.max_sources = 0
+
+        with self.assertRaisesRegex(ConfigValidationError, "max_sources"):
+            AppConfigValidator().validate(config)
+
+    def test_validator_fails_on_invalid_max_search_calls(self) -> None:
+        config = _app_config()
+        config.search.max_search_calls_per_run = 0
+
+        with self.assertRaisesRegex(ConfigValidationError, "max_search_calls_per_run"):
+            AppConfigValidator().validate(config)
+
+    def test_validator_fails_when_no_outlets_exist(self) -> None:
+        config = _app_config()
+        config.outlets = []
+
+        with self.assertRaisesRegex(ConfigValidationError, "at least one outlet"):
+            AppConfigValidator().validate(config)
+
+    def test_validator_uses_openai_settings_resolver(self) -> None:
+        config = _app_config()
+        config.search.web_search_model_id = ""
+
+        with self.assertRaisesRegex(ConfigValidationError, "web_search_model_id"):
+            AppConfigValidator().validate(config)
+
+
+def _app_config() -> AppConfig:
+    return AppConfig(
+        model=ModelConfig(
+            backend="gemini",
+            api_key_env="GEMINI_KEY",
+            question_analysis_model_id="gemma-4-31b-it",
+            query_planning_model_id="gemma-4-31b-it",
+            candidate_filter_model_id="gemma-4-31b-it",
+            article_selection_model_id="gemma-4-31b-it",
+            metric_extraction_model_id="gemma-4-31b-it",
+            summary_model_id="gemma-4-31b-it",
+            max_output_tokens=256,
+            temperature=0.2,
+        ),
+        search=SearchConfig(
+            provider="openai_web_search",
+            days_back=7,
+            max_sources=5,
+            max_search_calls_per_run=1,
+            api_key_env="OPENAI_SEARCH_KEY",
+            web_search_model_id="gpt-5.4-mini",
+            web_search_reasoning_effort="low",
+            web_search_max_tool_calls=1,
+            web_search_text_verbosity="low",
+        ),
+        outlets=[
+            OutletConfig(
+                name="Example",
+                domain="example.com",
+                country="France",
+                medium_type="newspaper",
+                orientation="center",
+                notes="test",
+            )
+        ],
+        config_path=Path("config/news_agent_openai.yaml"),
+    )
 
 
 if __name__ == "__main__":

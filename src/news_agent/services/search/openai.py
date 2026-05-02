@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import logging
 
+from ...configuration.settings import OpenAIWebSearchSettings
+from ...configuration.settings import resolve_openai_web_search_settings
 from ...models.config import AppConfig
 from ...models.research import ResearchIntent
 from ...models.research import SearchPlan
@@ -33,6 +35,7 @@ class OpenAIWebSearchClient:
         config: AppConfig,
         prompt_service: PromptService | None = None,
         debug_output: DebugOutput | None = None,
+        settings: OpenAIWebSearchSettings | None = None,
         job_planner: OpenAISearchJobPlanner | None = None,
         prompt_builder: OpenAIWebSearchPromptBuilder | None = None,
         gateway: OpenAIWebSearchGateway | DebuggingOpenAIWebSearchGateway | None = None,
@@ -41,6 +44,7 @@ class OpenAIWebSearchClient:
     ) -> None:
         self.config = config
         self.search_config = config.search
+        self.settings = settings or resolve_openai_web_search_settings(config)
         self.outlets = config.outlets
         self.prompt_service = prompt_service or PromptService()
         self.debug_output = debug_output
@@ -49,7 +53,7 @@ class OpenAIWebSearchClient:
             self.prompt_service
         )
         if gateway is None:
-            inner_gateway = OpenAIWebSearchGateway(api_key_env=self._api_key_env())
+            inner_gateway = OpenAIWebSearchGateway(api_key_env=self.settings.api_key_env)
             self.gateway = (
                 DebuggingOpenAIWebSearchGateway(inner_gateway, debug_output)
                 if debug_output
@@ -123,12 +127,12 @@ class OpenAIWebSearchClient:
                     prompt=prompt,
                     search_query=job.search_query,
                     outlet_names=tuple(outlet.name for outlet in job.outlets),
-                    model_id=self._web_search_model_id(),
-                    max_output_tokens=self.config.model.max_output_tokens,
-                    temperature=self.config.model.temperature,
-                    reasoning_effort=self.search_config.web_search_reasoning_effort,
-                    max_tool_calls=self.search_config.web_search_max_tool_calls,
-                    text_verbosity=self.search_config.web_search_text_verbosity,
+                    model_id=self.settings.model_id,
+                    max_output_tokens=self.settings.max_output_tokens,
+                    temperature=self.settings.temperature,
+                    reasoning_effort=self.settings.reasoning_effort,
+                    max_tool_calls=self.settings.max_tool_calls,
+                    text_verbosity=self.settings.text_verbosity,
                 )
             )
             raw_output = response.raw_text
@@ -154,21 +158,3 @@ class OpenAIWebSearchClient:
             raise ModelGenerationError(
                 f"OpenAI web search request failed for job {job_index}."
             ) from exc
-
-    def _web_search_model_id(self) -> str:
-        """Return the OpenAI model used only for web-search retrieval."""
-        if self.search_config.web_search_model_id:
-            return self.search_config.web_search_model_id
-        raise ModelGenerationError(
-            "OpenAI web search requires `search.web_search_model_id`."
-        )
-
-    def _api_key_env(self) -> str:
-        """Return the API key env var for the OpenAI web-search provider."""
-        if self.search_config.api_key_env:
-            return self.search_config.api_key_env
-        if self.config.model.backend == "openai" and self.config.model.api_key_env:
-            return self.config.model.api_key_env
-        raise ModelGenerationError(
-            "OpenAI web search requires `search.api_key_env` when the main model backend is not OpenAI."
-        )

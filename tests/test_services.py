@@ -15,10 +15,12 @@ from news_agent.models.research import ResearchIntent
 from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
+from news_agent.configuration.settings import OpenAIWebSearchSettings
 from news_agent.services.research import ResearchService
 from news_agent.services.debug_output import DebugOutput
 from news_agent.services.search import build_search_client
 from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
+from news_agent.services.search.openai import OpenAIWebSearchClient
 from news_agent.services.search.openai_article_normalizer import OpenAIArticleNormalizer
 from news_agent.services.search.openai_gateway import DebuggingOpenAIWebSearchGateway
 from news_agent.services.search.openai_gateway import OpenAIWebSearchRequest
@@ -173,6 +175,12 @@ class FakeOpenAIWebSearchGateway:
         )
 
 
+class FakeOpenAIWebSearchPromptBuilder:
+    def build(self, **kwargs: object) -> str:
+        _ = kwargs
+        return "OpenAI web-search prompt"
+
+
 class FakeFreeNewsApiSearchClient(FreeNewsApiSearchClient):
     def __init__(self, config: AppConfig) -> None:
         self.config = config
@@ -289,7 +297,7 @@ class ServiceTests(unittest.TestCase):
                 provider="google_news_rss",
                 days_back=90,
                 max_sources=5,
-                max_search_calls_per_run=0,
+                max_search_calls_per_run=1,
             ),
             outlets=[
                 OutletConfig(
@@ -660,6 +668,38 @@ class ServiceTests(unittest.TestCase):
             )
             self.assertEqual(search_job["search_query"], "latest update site:example.com")
             self.assertEqual(search_job["outlets"], ["Example"])
+
+    def test_openai_client_uses_injected_settings_for_request(self) -> None:
+        gateway = FakeOpenAIWebSearchGateway()
+        settings = OpenAIWebSearchSettings(
+            api_key_env="UNUSED_IN_TEST",
+            model_id="gpt-5.4-mini",
+            max_output_tokens=321,
+            temperature=0.3,
+            reasoning_effort="high",
+            max_tool_calls=4,
+            text_verbosity="medium",
+        )
+        client = OpenAIWebSearchClient(
+            config=self.config,
+            settings=settings,
+            gateway=gateway,
+            prompt_builder=FakeOpenAIWebSearchPromptBuilder(),
+        )
+
+        articles = client.search_candidates("What changed?")
+
+        self.assertFalse(hasattr(client, "_web_search_model_id"))
+        self.assertFalse(hasattr(client, "_api_key_env"))
+        self.assertEqual(len(articles), 1)
+        self.assertIsNotNone(gateway.request)
+        assert gateway.request is not None
+        self.assertEqual(gateway.request.model_id, "gpt-5.4-mini")
+        self.assertEqual(gateway.request.max_output_tokens, 321)
+        self.assertEqual(gateway.request.temperature, 0.3)
+        self.assertEqual(gateway.request.reasoning_effort, "high")
+        self.assertEqual(gateway.request.max_tool_calls, 4)
+        self.assertEqual(gateway.request.text_verbosity, "medium")
 
     def test_openai_raw_response_path_preserves_reasoning_effort(self) -> None:
         body = {

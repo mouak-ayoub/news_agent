@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from ..configuration.validation import AppConfigValidator
 from ..models.config import AppConfig
 from ..models.config import ModelConfig
 from ..models.config import OutletConfig
@@ -22,12 +23,14 @@ class ConfigLoader:
             data = yaml.safe_load(handle)
         model_data = _normalize_model_config(data["model"])
 
-        return AppConfig(
+        config = AppConfig(
             model=ModelConfig(**model_data),
             search=SearchConfig(**data["search"]),
             outlets=[OutletConfig(**outlet) for outlet in self._load_outlets(data, config_path)],
             config_path=config_path,
         )
+        AppConfigValidator().validate(config)
+        return config
 
     def _load_outlets(self, data: dict, config_path: Path) -> list[dict]:
         """Load outlet definitions inline or from a YAML file near the config."""

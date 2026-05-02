@@ -17,7 +17,7 @@ search:
   provider: free_news_api
   days_back: 90
   max_sources: 5
-  max_search_calls_per_run: 0
+  max_search_calls_per_run: 1
   candidate_pool_size: 25
   request_timeout_seconds: 30
   user_agent: "news-agent/0.1 (+local learning project)"
