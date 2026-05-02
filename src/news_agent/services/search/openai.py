@@ -19,6 +19,7 @@ from ..prompt_service import PromptService
 from ..text_generation import ModelGenerationError
 from ..text_generation import ModelOutputError
 from ..text_generation import extract_json_block
+from ..text_generation import openai_supports_reasoning_effort
 from ..text_generation import openai_supports_temperature
 from .article_selector import ArticleSelector
 
@@ -183,6 +184,14 @@ class OpenAIWebSearchClient:
                 "input": prompt,
                 "max_output_tokens": self.config.model.max_output_tokens,
             }
+            reasoning_effort = self._web_search_reasoning_effort()
+            if reasoning_effort:
+                if not openai_supports_reasoning_effort(web_search_model_id):
+                    raise ModelGenerationError(
+                        "`search.web_search_reasoning_effort` is configured, "
+                        f"but `{web_search_model_id}` does not support reasoning effort."
+                    )
+                request_kwargs["reasoning"] = {"effort": reasoning_effort}
             if openai_supports_temperature(web_search_model_id):
                 request_kwargs["temperature"] = self.config.model.temperature
             response: Any = self.client.responses.create(**request_kwargs)
@@ -344,6 +353,19 @@ class OpenAIWebSearchClient:
         raise ModelGenerationError(
             "OpenAI web search requires `search.web_search_model_id`."
         )
+
+    def _web_search_reasoning_effort(self) -> str:
+        """Return normalized OpenAI reasoning effort, when configured."""
+        value = self.search_config.web_search_reasoning_effort.strip().lower()
+        if not value:
+            return ""
+        allowed_values = {"none", "minimal", "low", "medium", "high", "xhigh"}
+        if value not in allowed_values:
+            raise ModelGenerationError(
+                "`search.web_search_reasoning_effort` must be one of: "
+                + ", ".join(sorted(allowed_values))
+            )
+        return value
 
     def _api_key_env(self) -> str:
         """Return the API key env var for the OpenAI web-search provider."""

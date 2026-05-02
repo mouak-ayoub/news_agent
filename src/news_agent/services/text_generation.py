@@ -213,6 +213,12 @@ def openai_supports_temperature(model_id: str) -> bool:
     )
 
 
+def openai_supports_reasoning_effort(model_id: str) -> bool:
+    """Return whether this OpenAI model family accepts reasoning.effort."""
+    normalized = model_id.strip().lower()
+    return normalized.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
 def _resolve_gemini_api_key(config: ModelConfig) -> str | None:
     if config.api_key_env:
         api_key = os.environ.get(config.api_key_env)

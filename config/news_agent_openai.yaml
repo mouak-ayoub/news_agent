@@ -22,7 +22,10 @@ search:
   provider: openai_web_search
   api_key_env: openai_news_api
   web_search_model_id: gpt-5.4-mini
-  days_back: 30
+  # Reasoning effort for reasoning models only: none, minimal, low, medium, high, xhigh.
+  # Leave empty or remove this key for non-reasoning models like gpt-4.1.
+  web_search_reasoning_effort: high
+  days_back: 60
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20
   # outlet count + 1 gives one broad recall job plus one job per outlet.

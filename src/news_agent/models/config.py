@@ -52,6 +52,7 @@ class SearchConfig:
     base_url: str = ""
     web_search_prompt: str = "web_search_research"
     web_search_model_id: str = ""
+    web_search_reasoning_effort: str = ""
 
 
 @dataclass(slots=True)
