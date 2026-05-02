@@ -216,6 +216,10 @@ class PipelineTests(unittest.TestCase):
 
             self.assertEqual(
                 debug_output.run_dir.parent.name,
+                _current_three_hour_bucket(),
+            )
+            self.assertEqual(
+                debug_output.run_dir.parent.parent.name,
                 datetime.now().strftime("%Y-%m-%d"),
             )
             self.assertTrue((debug_output.run_dir / "git_fingerprint.json").exists())
@@ -236,6 +240,11 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(_gemini_retry_attempts(config), 1)
         self.assertEqual(_gemini_retry_delay_seconds(config, attempt=2), 0.0)
+
+def _current_three_hour_bucket() -> str:
+    now = datetime.now()
+    start_hour = (now.hour // 3) * 3
+    return f"{start_hour:02d}00-{start_hour + 3:02d}00"
 
 
 if __name__ == "__main__":

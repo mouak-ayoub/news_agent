@@ -81,11 +81,12 @@ class DebugOutput:
 
 
 def create_debug_output(query: str, project_root: Path) -> DebugOutput:
-    """Create one timestamped debug folder under the current day."""
+    """Create one timestamped debug folder under day and 3-hour bucket folders."""
     now = datetime.now()
     day_dir = project_root / "debug_output" / now.strftime("%Y-%m-%d")
+    bucket_dir = day_dir / _three_hour_bucket(now)
     timestamp = now.strftime("%Y%m%d_%H%M%S")
-    run_dir = day_dir / f"{timestamp}_{_slugify(query)}"
+    run_dir = bucket_dir / f"{timestamp}_{_slugify(query)}"
     debug_output = DebugOutput(run_dir)
     debug_output.write_json("git_fingerprint.json", git_fingerprint(project_root))
     return debug_output
@@ -120,6 +121,12 @@ def git_fingerprint(project_root: Path) -> dict[str, object]:
 def _slugify(value: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.lower()).strip("-")
     return normalized[:80] or "run"
+
+
+def _three_hour_bucket(value: datetime) -> str:
+    start_hour = (value.hour // 3) * 3
+    end_hour = start_hour + 3
+    return f"{start_hour:02d}00-{end_hour:02d}00"
 
 
 def _git(project_root: Path, *args: str) -> str:

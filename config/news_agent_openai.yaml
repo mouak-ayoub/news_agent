@@ -33,7 +33,7 @@ search:
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20
   # outlet count + 1 gives one broad recall job plus one job per outlet.
-  max_search_calls_per_run: 7
+  max_search_calls_per_run: 2
   # Prompt variants live in config/prompts/web_search.
   web_search_prompt: web_search/web_search_research_self_consistency
 
