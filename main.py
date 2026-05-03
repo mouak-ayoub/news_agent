@@ -4,7 +4,7 @@ import sys
 
 # Edit these values when you want to run the project directly from PyCharm or
 # with `.\.venv\Scripts\python.exe main.py` and no command-line arguments.
-DEFAULT_QUERY = "What are the latest casualty figures in the Iran-USA conflict?"
+DEFAULT_QUERY = "Are some space actors testing their products preparing for Artemis III ?"
 # Short config names are resolved from the project `config` folder.
 DEFAULT_CONFIG = "news_agent_openai.yaml"
 DEFAULT_HTML_OUT = "reports/openai-run.html"
