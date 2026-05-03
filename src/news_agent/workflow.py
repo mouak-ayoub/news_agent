@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 
@@ -6,13 +6,13 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from .agents.agent_builder import AgentGraphBuilder
-from .bootstrap.container import build_application_container
-from .models.config import AppConfig
-from .models.triage import TriageBrief
-from .services.debug.debug_output import DebugOutput
-from .services.research import ResearchService
-from .services.summarization import SummarizationService
+from news_agent.agents.agent_builder import AgentGraphBuilder
+from news_agent.bootstrap.container import build_application_container
+from news_agent.models.config import AppConfig
+from news_agent.models.triage import TriageBrief
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.research import ResearchService
+from news_agent.services.summarization import SummarizationService
 
 APP_NAME = "agents"
 
@@ -79,4 +79,3 @@ def run_triage(
     if "triage_brief" not in final_session.state:
         raise RuntimeError("The ADK workflow did not produce a triage brief.")
     return TriageBrief.from_dict(final_session.state["triage_brief"])
-

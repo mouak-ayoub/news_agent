@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from google.adk.agents import SequentialAgent
 
-from .coordinator import CoordinatorAgent
-from .researcher import ResearchAgent
-from .summarizer import SummarizerAgent
-from ..services.research import ResearchService
-from ..services.summarization import SummarizationService
+from news_agent.agents.coordinator import CoordinatorAgent
+from news_agent.agents.researcher import ResearchAgent
+from news_agent.agents.summarizer import SummarizerAgent
+from news_agent.services.research import ResearchService
+from news_agent.services.summarization import SummarizationService
 
 
 class AgentGraphBuilder:

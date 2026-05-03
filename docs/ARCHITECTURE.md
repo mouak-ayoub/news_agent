@@ -57,14 +57,14 @@ flowchart LR
     Models --> MG["generation.py"]
     Models --> MT["triage.py"]
 
-    Services --> CL["config_loader.py"]
+    Configuration --> CL["loader.py"]
     Services --> ResearchPkg["research/"]
     Services --> ArticlesPkg["articles/"]
     Services --> LLMPkg["llm/"]
     Services --> PromptsPkg["prompts/"]
     Services --> DebugPkg["debug/"]
     Services --> ReportingPkg["reporting/"]
-    Services --> SM["summarization.py"]
+    Services --> SummarizationPkg["summarization/"]
     Services --> Search["search/"]
 
     Configuration --> Settings["settings.py"]
@@ -84,6 +84,7 @@ flowchart LR
     PromptsPkg --> PS["prompt_service.py"]
     DebugPkg --> DO["debug_output.py"]
     ReportingPkg --> RP["html_report.py"]
+    SummarizationPkg --> SM["service.py"]
 
     Search --> SB["base.py"]
     Search --> SF["factory.py"]
@@ -206,8 +207,10 @@ flowchart TD
 - Provider-specific implementations stay at the edge under `services/search/`.
 - OpenAI web-search internals live under `services/search/openai/`.
 - Research workflow pieces live under `services/research/`.
+- Summarization lives under `services/summarization/`.
 - Article processing pieces live under `services/articles/`.
 - Text generation infrastructure lives under `services/llm/`.
+- Configuration loading, validation, and resolved settings live under `configuration/`.
 - Prompt loading, debug output, and reporting each have focused subpackages.
 - Agents do orchestration only; service logic lives in `services/`.
 - Prompts live in `config/prompts/`, not embedded in provider code.

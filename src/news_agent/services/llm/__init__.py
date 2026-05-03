@@ -1,4 +1,4 @@
-﻿"""Text generation adapters and helpers."""
+"""Text generation adapters and helpers."""
 
 from news_agent.services.llm.text_generation import GenerationResult
 from news_agent.services.llm.text_generation import ModelGenerationError

@@ -14,8 +14,8 @@ from news_agent.models.config import AppConfig
 from news_agent.models.config import ModelConfig
 from news_agent.models.config import OutletConfig
 from news_agent.models.config import SearchConfig
-from news_agent.services.config_loader import load_app_config
-from news_agent.services.config_loader import resolve_cli_config_arg
+from news_agent.configuration.loader import load_app_config
+from news_agent.configuration.loader import resolve_cli_config_arg
 
 
 class ConfigTests(unittest.TestCase):

@@ -1,4 +1,4 @@
-﻿"""Debug artifact writing."""
+"""Debug artifact writing."""
 
 from news_agent.services.debug.debug_output import DebugModelCall
 from news_agent.services.debug.debug_output import DebugOutput

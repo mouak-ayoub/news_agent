@@ -1,19 +1,19 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 
 from news_agent.models.config import AppConfig
-from ..services.articles.article_content_fetcher import ArticleContentFetcher
-from ..services.debug.debug_output import DebugOutput
-from ..services.research.metric_extractor import MetricExtractor
-from ..services.prompts.prompt_service import PromptService
-from ..services.research.query_planner import QueryPlanner
-from ..services.research.question_analyzer import QuestionAnalyzer
-from ..services.research import ResearchService
-from ..services.search import build_search_client
-from ..services.articles.article_selector import ArticleSelector
-from ..services.summarization import SummarizationService
-from ..services.llm.text_generation import build_text_generator
+from news_agent.services.articles.article_content_fetcher import ArticleContentFetcher
+from news_agent.services.articles.article_selector import ArticleSelector
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.llm.text_generation import build_text_generator
+from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.research import ResearchService
+from news_agent.services.research.metric_extractor import MetricExtractor
+from news_agent.services.research.query_planner import QueryPlanner
+from news_agent.services.research.question_analyzer import QuestionAnalyzer
+from news_agent.services.search import build_search_client
+from news_agent.services.summarization import SummarizationService
 
 
 @dataclass(slots=True)
@@ -120,6 +120,5 @@ def build_summarization_service(
         prompt_service=prompt_service,
         debug_output=debug_output,
     )
-
 
 

@@ -11,7 +11,7 @@ from google.adk.events.event_actions import EventActions
 from google.genai import types
 from typing_extensions import override
 
-from ..services.research import ResearchService
+from news_agent.services.research import ResearchService
 
 
 logger = logging.getLogger(__name__)

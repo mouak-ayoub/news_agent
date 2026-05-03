@@ -1,15 +1,13 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
 
 from news_agent.configuration.settings import OpenAIWebSearchSettings
-from news_agent.configuration.settings import resolve_openai_web_search_settings
 from news_agent.models.config import AppConfig
 from news_agent.models.research import ResearchIntent
 from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
-from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.llm.text_generation import ModelGenerationError
 from news_agent.services.llm.text_generation import ModelOutputError
@@ -32,37 +30,26 @@ class OpenAIWebSearchClient:
 
     def __init__(
         self,
+        *,
         config: AppConfig,
-        prompt_service: PromptService | None = None,
-        debug_output: DebugOutput | None = None,
-        settings: OpenAIWebSearchSettings | None = None,
-        job_planner: OpenAISearchJobPlanner | None = None,
-        prompt_builder: OpenAIWebSearchPromptBuilder | None = None,
-        gateway: OpenAIWebSearchGateway | DebuggingOpenAIWebSearchGateway | None = None,
-        normalizer: OpenAIArticleNormalizer | None = None,
-        deduplicator: ArticleDeduplicator | None = None,
+        settings: OpenAIWebSearchSettings,
+        prompt_service: PromptService,
+        job_planner: OpenAISearchJobPlanner,
+        prompt_builder: OpenAIWebSearchPromptBuilder,
+        gateway: OpenAIWebSearchGateway | DebuggingOpenAIWebSearchGateway,
+        normalizer: OpenAIArticleNormalizer,
+        deduplicator: ArticleDeduplicator,
     ) -> None:
         self.config = config
         self.search_config = config.search
-        self.settings = settings or resolve_openai_web_search_settings(config)
+        self.settings = settings
         self.outlets = config.outlets
-        self.prompt_service = prompt_service or PromptService()
-        self.debug_output = debug_output
-        self.job_planner = job_planner or OpenAISearchJobPlanner()
-        self.prompt_builder = prompt_builder or OpenAIWebSearchPromptBuilder(
-            self.prompt_service
-        )
-        if gateway is None:
-            inner_gateway = OpenAIWebSearchGateway(api_key_env=self.settings.api_key_env)
-            self.gateway = (
-                DebuggingOpenAIWebSearchGateway(inner_gateway, debug_output)
-                if debug_output
-                else inner_gateway
-            )
-        else:
-            self.gateway = gateway
-        self.normalizer = normalizer or OpenAIArticleNormalizer()
-        self.deduplicator = deduplicator or ArticleDeduplicator()
+        self.prompt_service = prompt_service
+        self.job_planner = job_planner
+        self.prompt_builder = prompt_builder
+        self.gateway = gateway
+        self.normalizer = normalizer
+        self.deduplicator = deduplicator
 
     def search_candidates(
         self,
@@ -158,5 +145,4 @@ class OpenAIWebSearchClient:
             raise ModelGenerationError(
                 f"OpenAI web search request failed for job {job_index}."
             ) from exc
-
 

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from datetime import timedelta
@@ -16,8 +16,10 @@ from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.configuration.settings import OpenAIWebSearchSettings
+from news_agent.services.articles.article_deduplicator import ArticleDeduplicator
 from news_agent.services.research import ResearchService
 from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.search import build_search_client
 from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
 from news_agent.services.search.openai import OpenAIWebSearchClient
@@ -683,8 +685,12 @@ class ServiceTests(unittest.TestCase):
         client = OpenAIWebSearchClient(
             config=self.config,
             settings=settings,
+            prompt_service=PromptService(),
+            job_planner=OpenAISearchJobPlanner(),
             gateway=gateway,
             prompt_builder=FakeOpenAIWebSearchPromptBuilder(),
+            normalizer=OpenAIArticleNormalizer(),
+            deduplicator=ArticleDeduplicator(),
         )
 
         articles = client.search_candidates("What changed?")
@@ -763,4 +769,3 @@ class ServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

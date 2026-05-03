@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 import traceback
@@ -11,7 +11,7 @@ from google.genai import types
 from typing_extensions import override
 
 from news_agent.models.triage import ResearchBundle
-from ..services.summarization import SummarizationService
+from news_agent.services.summarization import SummarizationService
 
 
 logger = logging.getLogger(__name__)
@@ -68,5 +68,4 @@ class SummarizerAgent(BaseAgent):
                 parts=[types.Part(text="SummarizerAgent prepared the final brief.")],
             ),
         )
-
 

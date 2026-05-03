@@ -1,18 +1,18 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import logging
 from pathlib import Path
 import sys
 
-from .workflow import run_triage
-from .services.config_loader import load_app_config
-from .services.config_loader import project_root
-from .services.config_loader import report_root_from_config
-from .services.config_loader import resolve_cli_config_arg
-from .services.debug.debug_output import create_debug_output
-from .services.reporting import default_report_path
-from .services.reporting import write_html_report
+from news_agent.configuration.loader import load_app_config
+from news_agent.configuration.loader import project_root
+from news_agent.configuration.loader import report_root_from_config
+from news_agent.configuration.loader import resolve_cli_config_arg
+from news_agent.services.debug.debug_output import create_debug_output
+from news_agent.services.reporting import default_report_path
+from news_agent.services.reporting import write_html_report
+from news_agent.workflow import run_triage
 
 
 logger = logging.getLogger(__name__)
@@ -81,4 +81,3 @@ def _configure_logging() -> None:
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         datefmt="%H:%M:%S",
     )
-

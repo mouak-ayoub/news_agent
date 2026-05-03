@@ -1,4 +1,4 @@
-﻿"""OpenAI web-search provider components."""
+"""OpenAI web-search provider components."""
 
 from .article_normalizer import OpenAIArticleNormalizer
 from .client import OpenAIWebSearchClient
