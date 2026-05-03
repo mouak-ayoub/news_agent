@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 
@@ -9,7 +9,7 @@ from google.adk.utils.context_utils import Aclosing
 from google.genai import types
 from typing_extensions import override
 
-from ..models.triage import TriageBrief
+from news_agent.models.triage import TriageBrief
 
 
 logger = logging.getLogger(__name__)
@@ -46,3 +46,5 @@ class CoordinatorAgent(BaseAgent):
             branch=ctx.branch,
             content=types.Content(role="model", parts=[types.Part(text=brief.final_brief)]),
         )
+
+

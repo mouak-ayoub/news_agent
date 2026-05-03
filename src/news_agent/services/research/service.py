@@ -1,14 +1,14 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 
-from ..models.config import OutletConfig
-from ..models.research import ResearchIntent
-from ..models.triage import ArticleRecord
-from ..models.triage import ResearchBundle
-from .search.base import SearchClient
-from .search.article_selector import ArticleSelector
-from .article_content_fetcher import ArticleContentFetcher
+from news_agent.models.config import OutletConfig
+from news_agent.models.research import ResearchIntent
+from news_agent.models.triage import ArticleRecord
+from news_agent.models.triage import ResearchBundle
+from news_agent.services.search.base import SearchClient
+from news_agent.services.articles.article_selector import ArticleSelector
+from news_agent.services.articles.article_content_fetcher import ArticleContentFetcher
 from .metric_extractor import MetricExtractor
 from .query_planner import QueryPlanner
 from .question_analyzer import QuestionAnalyzer
@@ -141,3 +141,5 @@ def _requires_direct_metric(expected_answer_type: str) -> bool:
         "number or range",
         "date",
     }
+
+

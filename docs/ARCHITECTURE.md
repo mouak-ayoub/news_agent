@@ -40,6 +40,8 @@ flowchart TD
 ```mermaid
 flowchart LR
     Root["src/news_agent"] --> Agents["agents/"]
+    Root --> Bootstrap["bootstrap/"]
+    Root --> Configuration["configuration/"]
     Root --> Models["models/"]
     Root --> Services["services/"]
     Root --> Workflow["workflow.py"]
@@ -56,25 +58,44 @@ flowchart LR
     Models --> MT["triage.py"]
 
     Services --> CL["config_loader.py"]
-    Services --> PS["prompt_service.py"]
-    Services --> DO["debug_output.py"]
-    Services --> QA["question_analyzer.py"]
-    Services --> QP["query_planner.py"]
-    Services --> RS["research.py"]
-    Services --> ACF["article_content_fetcher.py"]
-    Services --> MX["metric_extractor.py"]
-    Services --> RP["reporting.py"]
+    Services --> ResearchPkg["research/"]
+    Services --> ArticlesPkg["articles/"]
+    Services --> LLMPkg["llm/"]
+    Services --> PromptsPkg["prompts/"]
+    Services --> DebugPkg["debug/"]
+    Services --> ReportingPkg["reporting/"]
     Services --> SM["summarization.py"]
-    Services --> TG["text_generation.py"]
     Services --> Search["search/"]
+
+    Configuration --> Settings["settings.py"]
+    Configuration --> Validation["validation.py"]
+
+    ResearchPkg --> RS["service.py"]
+    ResearchPkg --> QA["question_analyzer.py"]
+    ResearchPkg --> QP["query_planner.py"]
+    ResearchPkg --> MX["metric_extractor.py"]
+
+    ArticlesPkg --> ACF["article_content_fetcher.py"]
+    ArticlesPkg --> AS["article_selector.py"]
+    ArticlesPkg --> CF["candidate_filter.py"]
+    ArticlesPkg --> AD["article_deduplicator.py"]
+
+    LLMPkg --> TG["text_generation.py"]
+    PromptsPkg --> PS["prompt_service.py"]
+    DebugPkg --> DO["debug_output.py"]
+    ReportingPkg --> RP["html_report.py"]
 
     Search --> SB["base.py"]
     Search --> SF["factory.py"]
-    Search --> SO["openai.py"]
     Search --> SR["rss.py"]
     Search --> SN["free_news_api.py"]
-    Search --> CF["candidate_filter.py"]
-    Search --> AS["article_selector.py"]
+    Search --> OpenAI["openai/"]
+
+    OpenAI --> SO["client.py"]
+    OpenAI --> GW["gateway.py"]
+    OpenAI --> JP["job_planner.py"]
+    OpenAI --> PB["prompt_builder.py"]
+    OpenAI --> ON["article_normalizer.py"]
 ```
 
 ## Core Relationships
@@ -168,7 +189,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Run["--debug"] --> Folder["debug_output/<timestamp>_<query>/"]
+    Run["--debug"] --> Folder["debug_output/<day>/<3-hour-bucket>/<timestamp>_<query>/"]
     Folder --> Context["run_context.json"]
     Folder --> Report["report.html"]
     Folder --> Calls["model_calls/"]
@@ -183,6 +204,11 @@ flowchart TD
 
 - All dataclasses stay in `models/`.
 - Provider-specific implementations stay at the edge under `services/search/`.
+- OpenAI web-search internals live under `services/search/openai/`.
+- Research workflow pieces live under `services/research/`.
+- Article processing pieces live under `services/articles/`.
+- Text generation infrastructure lives under `services/llm/`.
+- Prompt loading, debug output, and reporting each have focused subpackages.
 - Agents do orchestration only; service logic lives in `services/`.
 - Prompts live in `config/prompts/`, not embedded in provider code.
 - HTML report structure lives in `config/html/report.html`.

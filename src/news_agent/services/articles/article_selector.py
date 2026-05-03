@@ -1,19 +1,19 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
 
-from ...models.config import AppConfig
-from ...models.config import OutletConfig
-from ...models.research import ResearchIntent
-from ...models.triage import ArticleRecord
-from ..debug_output import DebugOutput
-from ..prompt_service import PromptService
-from ..text_generation import TextGenerator
-from ..text_generation import build_text_generator
-from ..text_generation import ModelGenerationError
-from ..text_generation import ModelOutputError
-from ..text_generation import extract_json_block
+from news_agent.models.config import AppConfig
+from news_agent.models.config import OutletConfig
+from news_agent.models.research import ResearchIntent
+from news_agent.models.triage import ArticleRecord
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.llm.text_generation import TextGenerator
+from news_agent.services.llm.text_generation import build_text_generator
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import extract_json_block
 from .candidate_filter import CandidateFilter
 
 
@@ -174,4 +174,6 @@ def _coerce_candidate_index(value: object, candidate_count: int) -> int | None:
     if 0 <= index < candidate_count:
         return index
     return None
+
+
 

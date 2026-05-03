@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from datetime import timedelta
@@ -12,14 +12,14 @@ import xml.etree.ElementTree as ET
 
 import requests
 
-from ...models.config import AppConfig
-from ...models.config import OutletConfig
-from ...models.research import ResearchIntent
-from ...models.research import SearchPlan
-from ...models.triage import ArticleRecord
-from ..article_content_fetcher import ArticleContentFetcher
-from ..debug_output import DebugOutput
-from ..prompt_service import PromptService
+from news_agent.models.config import AppConfig
+from news_agent.models.config import OutletConfig
+from news_agent.models.research import ResearchIntent
+from news_agent.models.research import SearchPlan
+from news_agent.models.triage import ArticleRecord
+from news_agent.services.articles.article_content_fetcher import ArticleContentFetcher
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
 
 
 logger = logging.getLogger(__name__)
@@ -513,3 +513,5 @@ def _find_child_attr(item: ET.Element, local_name: str, attr_name: str) -> str |
 
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
@@ -12,15 +12,15 @@ from news_agent.models.config import OutletConfig
 from news_agent.models.config import SearchConfig
 from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
-from news_agent.services.debug_output import DebugOutput
-from news_agent.services.debug_output import create_debug_output
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.debug.debug_output import create_debug_output
 from news_agent.services.summarization import SummarizationService
-from news_agent.services.text_generation import ModelGenerationError
-from news_agent.services.text_generation import ModelOutputError
-from news_agent.services.text_generation import StaticTextGenerator
-from news_agent.services.text_generation import _gemini_retry_attempts
-from news_agent.services.text_generation import _gemini_retry_delay_seconds
-from news_agent.services.text_generation import openai_supports_temperature
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import StaticTextGenerator
+from news_agent.services.llm.text_generation import _gemini_retry_attempts
+from news_agent.services.llm.text_generation import _gemini_retry_delay_seconds
+from news_agent.services.llm.text_generation import openai_supports_temperature
 
 
 class FailingTextGenerator:
@@ -249,3 +249,4 @@ def _current_three_hour_bucket() -> str:
 
 if __name__ == "__main__":
     unittest.main()
+

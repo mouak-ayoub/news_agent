@@ -1,20 +1,20 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict
 import json
 import logging
 
-from ...models.config import AppConfig
-from ...models.config import OutletConfig
-from ...models.research import ResearchIntent
-from ...models.triage import ArticleRecord
-from ..debug_output import DebugOutput
-from ..prompt_service import PromptService
-from ..text_generation import ModelGenerationError
-from ..text_generation import ModelOutputError
-from ..text_generation import TextGenerator
-from ..text_generation import build_text_generator
-from ..text_generation import extract_json_block
+from news_agent.models.config import AppConfig
+from news_agent.models.config import OutletConfig
+from news_agent.models.research import ResearchIntent
+from news_agent.models.triage import ArticleRecord
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import TextGenerator
+from news_agent.services.llm.text_generation import build_text_generator
+from news_agent.services.llm.text_generation import extract_json_block
 
 
 logger = logging.getLogger(__name__)
@@ -125,3 +125,5 @@ def _coerce_indexes(value: object, candidate_count: int) -> list[int]:
         if 0 <= index < candidate_count and index not in indexes:
             indexes.append(index)
     return indexes
+
+

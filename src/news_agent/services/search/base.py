@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Protocol
 
-from ...models.research import ResearchIntent
-from ...models.research import SearchPlan
-from ...models.triage import ArticleRecord
+from news_agent.models.research import ResearchIntent
+from news_agent.models.research import SearchPlan
+from news_agent.models.triage import ArticleRecord
 
 
 class SearchClient(Protocol):
@@ -18,3 +18,5 @@ class SearchClient(Protocol):
     ) -> list[ArticleRecord]:
         """Return provider-normalized article candidates for the user query."""
         ...
+
+

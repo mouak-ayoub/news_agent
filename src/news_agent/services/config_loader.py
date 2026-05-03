@@ -1,15 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 from pathlib import Path
 
 import yaml
 
-from ..configuration.validation import AppConfigValidator
-from ..models.config import AppConfig
-from ..models.config import ModelConfig
-from ..models.config import OutletConfig
-from ..models.config import SearchConfig
+from news_agent.configuration.validation import AppConfigValidator
+from news_agent.models.config import AppConfig
+from news_agent.models.config import ModelConfig
+from news_agent.models.config import OutletConfig
+from news_agent.models.config import SearchConfig
 
 
 class ConfigLoader:
@@ -120,3 +120,5 @@ def _normalize_model_config(model_data: dict) -> dict:
     ):
         normalized.setdefault(field_name, default_step_model_id)
     return normalized
+
+

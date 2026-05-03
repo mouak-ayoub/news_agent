@@ -1,19 +1,19 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..models.config import AppConfig
-from ..services.article_content_fetcher import ArticleContentFetcher
-from ..services.debug_output import DebugOutput
-from ..services.metric_extractor import MetricExtractor
-from ..services.prompt_service import PromptService
-from ..services.query_planner import QueryPlanner
-from ..services.question_analyzer import QuestionAnalyzer
+from news_agent.models.config import AppConfig
+from ..services.articles.article_content_fetcher import ArticleContentFetcher
+from ..services.debug.debug_output import DebugOutput
+from ..services.research.metric_extractor import MetricExtractor
+from ..services.prompts.prompt_service import PromptService
+from ..services.research.query_planner import QueryPlanner
+from ..services.research.question_analyzer import QuestionAnalyzer
 from ..services.research import ResearchService
 from ..services.search import build_search_client
-from ..services.search.article_selector import ArticleSelector
+from ..services.articles.article_selector import ArticleSelector
 from ..services.summarization import SummarizationService
-from ..services.text_generation import build_text_generator
+from ..services.llm.text_generation import build_text_generator
 
 
 @dataclass(slots=True)
@@ -120,3 +120,6 @@ def build_summarization_service(
         prompt_service=prompt_service,
         debug_output=debug_output,
     )
+
+
+

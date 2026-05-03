@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -6,8 +6,8 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-from ...models.config import OutletConfig
-from ...models.triage import ArticleRecord
+from news_agent.models.config import OutletConfig
+from news_agent.models.triage import ArticleRecord
 
 
 logger = logging.getLogger(__name__)
@@ -165,4 +165,6 @@ class OpenAIArticleNormalizer:
     def _clean_domain(self, value: str) -> str:
         """Normalize domains before comparing provider output with config."""
         return value.strip().lower().removeprefix("www.")
+
+
 

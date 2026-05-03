@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from datetime import timedelta
@@ -17,20 +17,20 @@ from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.configuration.settings import OpenAIWebSearchSettings
 from news_agent.services.research import ResearchService
-from news_agent.services.debug_output import DebugOutput
+from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.search import build_search_client
 from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
 from news_agent.services.search.openai import OpenAIWebSearchClient
-from news_agent.services.search.openai_article_normalizer import OpenAIArticleNormalizer
-from news_agent.services.search.openai_gateway import DebuggingOpenAIWebSearchGateway
-from news_agent.services.search.openai_gateway import OpenAIWebSearchRequest
-from news_agent.services.search.openai_gateway import OpenAIWebSearchResponse
-from news_agent.services.search.openai_gateway import _create_openai_response
-from news_agent.services.search.openai_gateway import _extract_openai_response_text
-from news_agent.services.search.openai_gateway import _raise_for_incomplete_openai_response
-from news_agent.services.search.openai_job_planner import OpenAISearchJobPlanner
+from news_agent.services.search.openai.article_normalizer import OpenAIArticleNormalizer
+from news_agent.services.search.openai.gateway import DebuggingOpenAIWebSearchGateway
+from news_agent.services.search.openai.gateway import OpenAIWebSearchRequest
+from news_agent.services.search.openai.gateway import OpenAIWebSearchResponse
+from news_agent.services.search.openai.gateway import _create_openai_response
+from news_agent.services.search.openai.gateway import _extract_openai_response_text
+from news_agent.services.search.openai.gateway import _raise_for_incomplete_openai_response
+from news_agent.services.search.openai.job_planner import OpenAISearchJobPlanner
 from news_agent.services.search.rss import GoogleNewsRssSearchClient
-from news_agent.services.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import ModelOutputError
 
 
 class FakeSearchClient:
@@ -763,3 +763,4 @@ class ServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

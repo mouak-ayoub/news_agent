@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 import traceback
@@ -10,7 +10,7 @@ from google.adk.events.event_actions import EventActions
 from google.genai import types
 from typing_extensions import override
 
-from ..models.triage import ResearchBundle
+from news_agent.models.triage import ResearchBundle
 from ..services.summarization import SummarizationService
 
 
@@ -68,3 +68,5 @@ class SummarizerAgent(BaseAgent):
                 parts=[types.Part(text="SummarizerAgent prepared the final brief.")],
             ),
         )
+
+

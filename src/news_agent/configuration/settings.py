@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..models.config import AppConfig
+from news_agent.models.config import AppConfig
 from .validation import ConfigValidationError
 
 
@@ -44,3 +44,5 @@ def resolve_openai_web_search_settings(config: AppConfig) -> OpenAIWebSearchSett
         max_tool_calls=config.search.web_search_max_tool_calls,
         text_verbosity=config.search.web_search_text_verbosity,
     )
+
+

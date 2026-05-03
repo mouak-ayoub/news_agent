@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ..models.config import AppConfig
+from news_agent.models.config import AppConfig
 
 
 class ConfigValidationError(ValueError):
@@ -62,3 +62,5 @@ class AppConfigValidator:
 def _free_news_api_key_env(config: AppConfig) -> str:
     """Resolve the configured FreeNewsAPI key env var name without reading it."""
     return config.search.api_key_env.strip() or "news_triage_codex_app"
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 from dataclasses import asdict
@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 
-from ..models.config import AppConfig
+from news_agent.models.config import AppConfig
 
 
 class DebugModelCall:
@@ -141,3 +141,5 @@ def _git(project_root: Path, *args: str) -> str:
         timeout=10,
     )
     return completed.stdout.strip()
+
+

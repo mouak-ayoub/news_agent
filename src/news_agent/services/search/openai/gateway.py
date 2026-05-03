@@ -1,15 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 import json
 import os
 from typing import Any
 
-from ..debug_output import DebugOutput
-from ..text_generation import ModelGenerationError
-from ..text_generation import ModelOutputError
-from ..text_generation import openai_supports_reasoning_effort
-from ..text_generation import openai_supports_temperature
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import openai_supports_reasoning_effort
+from news_agent.services.llm.text_generation import openai_supports_temperature
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,3 +258,5 @@ def _field(value: Any, name: str, default: Any = None) -> Any:
     if isinstance(value, dict):
         return value.get(name, default)
     return getattr(value, name, default)
+
+

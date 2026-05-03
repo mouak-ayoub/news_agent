@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from html import escape
@@ -6,8 +6,8 @@ from pathlib import Path
 import re
 from string import Template
 
-from ..models.triage import SourceProfile
-from ..models.triage import TriageBrief
+from news_agent.models.triage import SourceProfile
+from news_agent.models.triage import TriageBrief
 
 
 NUMBER_PATTERN = re.compile(
@@ -59,7 +59,7 @@ def _load_report_template() -> Template:
 
 
 def _report_template_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "config" / "html" / "report.html"
+    return Path(__file__).resolve().parents[4] / "config" / "html" / "report.html"
 
 
 def _render_findings(brief: TriageBrief, profile_map: dict[str, SourceProfile]) -> str:
@@ -165,3 +165,5 @@ def _empty_card(text: str) -> str:
 def _slugify(value: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.lower()).strip("-")
     return normalized[:80] or "report"
+
+

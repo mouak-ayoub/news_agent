@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import html
 import logging
@@ -6,9 +6,9 @@ import re
 
 import requests
 
-from ..models.config import AppConfig
-from ..models.triage import ArticleRecord
-from ..models.triage import ResearchBundle
+from news_agent.models.config import AppConfig
+from news_agent.models.triage import ArticleRecord
+from news_agent.models.triage import ResearchBundle
 
 
 logger = logging.getLogger(__name__)
@@ -124,3 +124,5 @@ def _is_unreadable_fetch(final_url: str, raw_html: str) -> bool:
             "privacy policy</title>",
         )
     )
+
+

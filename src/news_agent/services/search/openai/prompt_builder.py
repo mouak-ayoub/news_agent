@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 
-from ...models.config import OutletConfig
-from ...models.research import ResearchIntent
-from ..prompt_service import PromptService
-from .openai_job_planner import WebSearchJob
+from news_agent.models.config import OutletConfig
+from news_agent.models.research import ResearchIntent
+from news_agent.services.prompts.prompt_service import PromptService
+from .job_planner import WebSearchJob
 
 
 class OpenAIWebSearchPromptBuilder:
@@ -70,4 +70,6 @@ def _append_search_job_context(
         f"- requested_answer: {requested_answer}\n"
         "- Return only candidates from the curated outlets listed in this prompt.\n"
     )
+
+
 

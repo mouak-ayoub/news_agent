@@ -22,4 +22,4 @@ class PromptService:
 
 
 def _default_prompts_dir() -> Path:
-    return Path(__file__).resolve().parents[3] / "config" / "prompts"
+    return Path(__file__).resolve().parents[4] / "config" / "prompts"

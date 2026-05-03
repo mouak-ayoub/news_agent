@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ...models.triage import ArticleRecord
+from news_agent.models.triage import ArticleRecord
 
 
 class ArticleDeduplicator:
@@ -18,4 +18,6 @@ class ArticleDeduplicator:
             seen.add(key)
             deduped.append(article)
         return deduped
+
+
 

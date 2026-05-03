@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 
@@ -10,7 +10,7 @@ from .agents.agent_builder import AgentGraphBuilder
 from .bootstrap.container import build_application_container
 from .models.config import AppConfig
 from .models.triage import TriageBrief
-from .services.debug_output import DebugOutput
+from .services.debug.debug_output import DebugOutput
 from .services.research import ResearchService
 from .services.summarization import SummarizationService
 
@@ -79,3 +79,4 @@ def run_triage(
     if "triage_brief" not in final_session.state:
         raise RuntimeError("The ADK workflow did not produce a triage brief.")
     return TriageBrief.from_dict(final_session.state["triage_brief"])
+

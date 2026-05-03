@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...models.config import OutletConfig
-from ...models.research import SearchPlan
+from news_agent.models.config import OutletConfig
+from news_agent.models.research import SearchPlan
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,4 +127,6 @@ def _scoped_query(query: str, outlets: list[OutletConfig]) -> str:
 
 def _domain_filter(outlets: list[OutletConfig]) -> str:
     return " OR ".join(f"site:{outlet.domain}" for outlet in outlets)
+
+
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 import os
@@ -8,8 +8,8 @@ from typing import Any
 
 import requests
 
-from ..models.config import ModelConfig
-from ..models.generation import GenerationResult
+from news_agent.models.config import ModelConfig
+from news_agent.models.generation import GenerationResult
 
 
 logger = logging.getLogger(__name__)
@@ -250,3 +250,5 @@ def _is_transient_gemini_error(exc: Exception) -> bool:
         return True
     text = str(exc)
     return any(marker in text for marker in ("500 INTERNAL", "502", "503", "504"))
+
+

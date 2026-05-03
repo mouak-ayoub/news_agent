@@ -1,20 +1,20 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict
 import json
 import logging
 
-from ..models.config import AppConfig
-from ..models.research import MetricExtraction
-from ..models.research import ResearchIntent
-from ..models.triage import ArticleRecord
-from ..models.triage import ResearchBundle
-from .debug_output import DebugOutput
-from .prompt_service import PromptService
-from .text_generation import ModelGenerationError
-from .text_generation import ModelOutputError
-from .text_generation import TextGenerator
-from .text_generation import extract_json_block
+from news_agent.models.config import AppConfig
+from news_agent.models.research import MetricExtraction
+from news_agent.models.research import ResearchIntent
+from news_agent.models.triage import ArticleRecord
+from news_agent.models.triage import ResearchBundle
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import TextGenerator
+from news_agent.services.llm.text_generation import extract_json_block
 
 
 logger = logging.getLogger(__name__)
@@ -88,3 +88,5 @@ class MetricExtractor:
                 debug_call.write_error(exc)
             logger.exception("metric extraction failed because model output was unusable")
             raise
+
+

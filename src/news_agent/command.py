@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import logging
@@ -10,7 +10,7 @@ from .services.config_loader import load_app_config
 from .services.config_loader import project_root
 from .services.config_loader import report_root_from_config
 from .services.config_loader import resolve_cli_config_arg
-from .services.debug_output import create_debug_output
+from .services.debug.debug_output import create_debug_output
 from .services.reporting import default_report_path
 from .services.reporting import write_html_report
 
@@ -81,3 +81,4 @@ def _configure_logging() -> None:
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         datefmt="%H:%M:%S",
     )
+

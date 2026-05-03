@@ -1,27 +1,27 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
 
-from ...configuration.settings import OpenAIWebSearchSettings
-from ...configuration.settings import resolve_openai_web_search_settings
-from ...models.config import AppConfig
-from ...models.research import ResearchIntent
-from ...models.research import SearchPlan
-from ...models.triage import ArticleRecord
-from ..debug_output import DebugOutput
-from ..prompt_service import PromptService
-from ..text_generation import ModelGenerationError
-from ..text_generation import ModelOutputError
-from ..text_generation import extract_json_block
-from .article_deduplicator import ArticleDeduplicator
-from .openai_article_normalizer import OpenAIArticleNormalizer
-from .openai_gateway import DebuggingOpenAIWebSearchGateway
-from .openai_gateway import OpenAIWebSearchGateway
-from .openai_gateway import OpenAIWebSearchRequest
-from .openai_job_planner import OpenAISearchJobPlanner
-from .openai_job_planner import WebSearchJob
-from .openai_prompt_builder import OpenAIWebSearchPromptBuilder
+from news_agent.configuration.settings import OpenAIWebSearchSettings
+from news_agent.configuration.settings import resolve_openai_web_search_settings
+from news_agent.models.config import AppConfig
+from news_agent.models.research import ResearchIntent
+from news_agent.models.research import SearchPlan
+from news_agent.models.triage import ArticleRecord
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import extract_json_block
+from news_agent.services.articles.article_deduplicator import ArticleDeduplicator
+from .article_normalizer import OpenAIArticleNormalizer
+from .gateway import DebuggingOpenAIWebSearchGateway
+from .gateway import OpenAIWebSearchGateway
+from .gateway import OpenAIWebSearchRequest
+from .job_planner import OpenAISearchJobPlanner
+from .job_planner import WebSearchJob
+from .prompt_builder import OpenAIWebSearchPromptBuilder
 
 
 logger = logging.getLogger(__name__)
@@ -158,3 +158,5 @@ class OpenAIWebSearchClient:
             raise ModelGenerationError(
                 f"OpenAI web search request failed for job {job_index}."
             ) from exc
+
+

@@ -1,20 +1,20 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict
 import json
 import logging
 import re
 
-from ..models.config import AppConfig
-from ..models.triage import ResearchBundle
-from ..models.triage import TriageBrief
-from ..models.generation import GenerationResult
-from .debug_output import DebugOutput
-from .prompt_service import PromptService
-from .text_generation import ModelGenerationError
-from .text_generation import ModelOutputError
-from .text_generation import TextGenerator
-from .text_generation import extract_json_block
+from news_agent.models.config import AppConfig
+from news_agent.models.triage import ResearchBundle
+from news_agent.models.triage import TriageBrief
+from news_agent.models.generation import GenerationResult
+from news_agent.services.debug.debug_output import DebugOutput
+from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.llm.text_generation import ModelGenerationError
+from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import TextGenerator
+from news_agent.services.llm.text_generation import extract_json_block
 
 NUMBER_PATTERN = re.compile(
     r"\b\d[\d,]*(?:\.\d+)?(?:\s?(?:k|m|b|million|billion|thousand|percent|%))?\b",
@@ -332,3 +332,5 @@ def _string_list(value: object) -> list[str]:
     if isinstance(value, (list, tuple, set)):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
+
