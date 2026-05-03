@@ -20,9 +20,10 @@ flowchart TD
     H --> I["ResearchAgent"]
     H --> J["SummarizerAgent"]
     I --> K["ResearchService.research()"]
-    K --> Q
-    K --> R
-    K --> S
+    K --> RP["ResearchPipeline.run()"]
+    RP --> Q
+    RP --> R
+    RP --> S
     S --> AF["Article candidates"]
     R --> WSJ["Deterministic site-filtered search jobs"]
     WSJ --> S
@@ -71,6 +72,9 @@ flowchart LR
     Configuration --> Validation["validation.py"]
 
     ResearchPkg --> RS["service.py"]
+    ResearchPkg --> RC["context.py"]
+    ResearchPkg --> RPL["pipeline.py"]
+    ResearchPkg --> RSteps["steps/"]
     ResearchPkg --> QA["question_analyzer.py"]
     ResearchPkg --> QP["query_planner.py"]
     ResearchPkg --> MX["metric_extractor.py"]
@@ -109,6 +113,11 @@ classDiagram
     class SequentialAgent
     class ResearchAgent
     class ResearchService
+    class ResearchPipeline
+    class ResearchContext
+    class ResearchStep {
+      <<interface>>
+    }
     class QuestionAnalyzer
     class QueryPlanner
     class SearchClient {
@@ -140,11 +149,14 @@ classDiagram
     SequentialAgent --> SummarizerAgent
 
     ResearchAgent --> ResearchService
-    ResearchService --> QuestionAnalyzer
-    ResearchService --> QueryPlanner
-    ResearchService --> SearchClient
-    ResearchService --> ArticleContentFetcher
-    ResearchService --> MetricExtractor
+    ResearchService --> ResearchPipeline
+    ResearchPipeline --> ResearchContext
+    ResearchPipeline --> ResearchStep
+    ResearchStep --> QuestionAnalyzer
+    ResearchStep --> QueryPlanner
+    ResearchStep --> SearchClient
+    ResearchStep --> ArticleContentFetcher
+    ResearchStep --> MetricExtractor
     SearchClient <|.. OpenAIWebSearchClient
     OpenAIWebSearchClient --> WebSearchJob
     SearchClient <|.. GoogleNewsRssSearchClient
@@ -206,7 +218,7 @@ flowchart TD
 - All dataclasses stay in `models/`.
 - Provider-specific implementations stay at the edge under `services/search/`.
 - OpenAI web-search internals live under `services/search/openai/`.
-- Research workflow pieces live under `services/research/`.
+- Research workflow pieces live under `services/research/`; ordered workflow logic lives in `services/research/steps/`.
 - Summarization lives under `services/summarization/`.
 - Article processing pieces live under `services/articles/`.
 - Text generation infrastructure lives under `services/llm/`.

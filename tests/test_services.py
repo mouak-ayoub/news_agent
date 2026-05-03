@@ -20,6 +20,15 @@ from news_agent.services.articles.article_deduplicator import ArticleDeduplicato
 from news_agent.services.research import ResearchService
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.research.pipeline import ResearchPipeline
+from news_agent.services.research.steps import AnalyzeQuestionStep
+from news_agent.services.research.steps import ApplyAnswerPolicyStep
+from news_agent.services.research.steps import BuildResearchBundleStep
+from news_agent.services.research.steps import EnrichCandidatesStep
+from news_agent.services.research.steps import ExtractMetricsStep
+from news_agent.services.research.steps import PlanQueriesStep
+from news_agent.services.research.steps import RetrieveCandidatesStep
+from news_agent.services.research.steps import SelectArticlesStep
 from news_agent.services.search import build_search_client
 from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
 from news_agent.services.search.openai import OpenAIWebSearchClient
@@ -135,6 +144,35 @@ class FakeArticleSelector:
             if article:
                 selected.append(article)
         return selected
+
+
+def build_test_research_service(
+    *,
+    client: FakeSearchClient,
+    question_analyzer: FakeQuestionAnalyzer | None = None,
+    query_planner: FakeQueryPlanner | None = None,
+    article_selector: FakeArticleSelector | None = None,
+    metric_extractor: FakeMetricExtractor | None = None,
+    outlets: list[OutletConfig] | None = None,
+    max_articles: int | None = None,
+) -> ResearchService:
+    pipeline = ResearchPipeline(
+        steps=[
+            AnalyzeQuestionStep(question_analyzer),
+            PlanQueriesStep(query_planner),
+            RetrieveCandidatesStep(client),
+            EnrichCandidatesStep(None),
+            SelectArticlesStep(
+                article_selector=article_selector,
+                outlets=outlets or [],
+                max_articles=max_articles,
+            ),
+            BuildResearchBundleStep(),
+            ExtractMetricsStep(metric_extractor),
+            ApplyAnswerPolicyStep(),
+        ]
+    )
+    return ResearchService(pipeline=pipeline)
 
 
 class FakeRawResponse:
@@ -323,7 +361,7 @@ class ServiceTests(unittest.TestCase):
         )
 
     def test_research_service_delegates_to_one_search_client(self) -> None:
-        service = ResearchService(client=FakeSearchClient())
+        service = build_test_research_service(client=FakeSearchClient())
 
         bundle = service.research("query")
 
@@ -333,7 +371,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_research_service_runs_intent_plan_and_metric_steps(self) -> None:
         client = FakeSearchClient()
-        service = ResearchService(
+        service = build_test_research_service(
             client=client,
             question_analyzer=FakeQuestionAnalyzer(),
             query_planner=FakeQueryPlanner(),
@@ -381,7 +419,7 @@ class ServiceTests(unittest.TestCase):
                 ),
             ]
         )
-        service = ResearchService(
+        service = build_test_research_service(
             client=client,
             article_selector=article_selector,
             outlets=self.config.outlets,

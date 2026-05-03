@@ -10,9 +10,18 @@ from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.llm.text_generation import build_text_generator
 from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.research import ResearchService
+from news_agent.services.research import ResearchPipeline
 from news_agent.services.research.metric_extractor import MetricExtractor
 from news_agent.services.research.query_planner import QueryPlanner
 from news_agent.services.research.question_analyzer import QuestionAnalyzer
+from news_agent.services.research.steps import AnalyzeQuestionStep
+from news_agent.services.research.steps import ApplyAnswerPolicyStep
+from news_agent.services.research.steps import BuildResearchBundleStep
+from news_agent.services.research.steps import EnrichCandidatesStep
+from news_agent.services.research.steps import ExtractMetricsStep
+from news_agent.services.research.steps import PlanQueriesStep
+from news_agent.services.research.steps import RetrieveCandidatesStep
+from news_agent.services.research.steps import SelectArticlesStep
 from news_agent.services.search import build_search_client
 from news_agent.services.summarization import SummarizationService
 
@@ -61,6 +70,29 @@ def build_research_service(
     debug_output: DebugOutput | None = None,
 ) -> ResearchService:
     """Build the research-side service graph."""
+    search_client = build_search_client(
+        config,
+        prompt_service=prompt_service,
+        debug_output=debug_output,
+    )
+    question_analyzer = QuestionAnalyzer(
+        config=config,
+        text_generator=build_text_generator(
+            config.model,
+            model_id=config.model.model_id_for_step("question_analysis"),
+        ),
+        prompt_service=prompt_service,
+        debug_output=debug_output,
+    )
+    query_planner = QueryPlanner(
+        config=config,
+        text_generator=build_text_generator(
+            config.model,
+            model_id=config.model.model_id_for_step("query_planning"),
+        ),
+        prompt_service=prompt_service,
+        debug_output=debug_output,
+    )
     candidate_filter = CandidateFilter(
         config=config,
         prompt_service=prompt_service,
@@ -70,53 +102,43 @@ def build_research_service(
         ),
         debug_output=debug_output,
     )
-    return ResearchService(
-        client=build_search_client(
-            config,
-            prompt_service=prompt_service,
-            debug_output=debug_output,
+    article_content_fetcher = ArticleContentFetcher(config)
+    article_selector = ArticleSelector(
+        config=config,
+        prompt_service=prompt_service,
+        text_generator=build_text_generator(
+            config.model,
+            model_id=config.model.model_id_for_step("article_selection"),
         ),
-        question_analyzer=QuestionAnalyzer(
-            config=config,
-            text_generator=build_text_generator(
-                config.model,
-                model_id=config.model.model_id_for_step("question_analysis"),
-            ),
-            prompt_service=prompt_service,
-            debug_output=debug_output,
-        ),
-        query_planner=QueryPlanner(
-            config=config,
-            text_generator=build_text_generator(
-                config.model,
-                model_id=config.model.model_id_for_step("query_planning"),
-            ),
-            prompt_service=prompt_service,
-            debug_output=debug_output,
-        ),
-        article_content_fetcher=ArticleContentFetcher(config),
-        article_selector=ArticleSelector(
-            config=config,
-            prompt_service=prompt_service,
-            text_generator=build_text_generator(
-                config.model,
-                model_id=config.model.model_id_for_step("article_selection"),
-            ),
-            candidate_filter=candidate_filter,
-            debug_output=debug_output,
-        ),
-        metric_extractor=MetricExtractor(
-            config=config,
-            text_generator=build_text_generator(
-                config.model,
-                model_id=config.model.model_id_for_step("metric_extraction"),
-            ),
-            prompt_service=prompt_service,
-            debug_output=debug_output,
-        ),
-        outlets=config.outlets[: config.search.max_sources],
-        max_articles=config.search.max_sources,
+        candidate_filter=candidate_filter,
+        debug_output=debug_output,
     )
+    metric_extractor = MetricExtractor(
+        config=config,
+        text_generator=build_text_generator(
+            config.model,
+            model_id=config.model.model_id_for_step("metric_extraction"),
+        ),
+        prompt_service=prompt_service,
+        debug_output=debug_output,
+    )
+    pipeline = ResearchPipeline(
+        steps=[
+            AnalyzeQuestionStep(question_analyzer),
+            PlanQueriesStep(query_planner),
+            RetrieveCandidatesStep(search_client),
+            EnrichCandidatesStep(article_content_fetcher),
+            SelectArticlesStep(
+                article_selector=article_selector,
+                outlets=config.outlets[: config.search.max_sources],
+                max_articles=config.search.max_sources,
+            ),
+            BuildResearchBundleStep(),
+            ExtractMetricsStep(metric_extractor),
+            ApplyAnswerPolicyStep(),
+        ]
+    )
+    return ResearchService(pipeline=pipeline)
 
 
 def build_summarization_service(
@@ -135,4 +157,3 @@ def build_summarization_service(
         prompt_service=prompt_service,
         debug_output=debug_output,
     )
-
