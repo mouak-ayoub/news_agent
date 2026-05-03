@@ -10,7 +10,6 @@ from news_agent.models.triage import ArticleRecord
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.llm.text_generation import TextGenerator
-from news_agent.services.llm.text_generation import build_text_generator
 from news_agent.services.llm.text_generation import ModelGenerationError
 from news_agent.services.llm.text_generation import ModelOutputError
 from news_agent.services.llm.text_generation import extract_json_block
@@ -26,22 +25,16 @@ class ArticleSelector:
     def __init__(
         self,
         config: AppConfig,
-        prompt_service: PromptService | None = None,
-        text_generator: TextGenerator | None = None,
+        prompt_service: PromptService,
+        text_generator: TextGenerator,
+        candidate_filter: CandidateFilter,
         debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
-        self.prompt_service = prompt_service or PromptService()
-        self.text_generator = text_generator or build_text_generator(
-            config.model,
-            model_id=config.model.model_id_for_step("article_selection"),
-        )
+        self.prompt_service = prompt_service
+        self.text_generator = text_generator
         self.debug_output = debug_output
-        self.candidate_filter = CandidateFilter(
-            config=config,
-            prompt_service=self.prompt_service,
-            debug_output=self.debug_output,
-        )
+        self.candidate_filter = candidate_filter
 
     def choose_best_article(
         self,
@@ -174,6 +167,5 @@ def _coerce_candidate_index(value: object, candidate_count: int) -> int | None:
     if 0 <= index < candidate_count:
         return index
     return None
-
 
 

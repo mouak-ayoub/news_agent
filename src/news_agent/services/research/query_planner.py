@@ -24,12 +24,12 @@ class QueryPlanner:
         self,
         config: AppConfig,
         text_generator: TextGenerator,
-        prompt_service: PromptService | None = None,
+        prompt_service: PromptService,
         debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.text_generator = text_generator
-        self.prompt_service = prompt_service or PromptService()
+        self.prompt_service = prompt_service
         self.debug_output = debug_output
 
     def plan(self, query: str, intent: ResearchIntent) -> SearchPlan:
@@ -80,5 +80,4 @@ def _dedupe(values: list[str]) -> list[str]:
         seen.add(key)
         result.append(normalized)
     return result
-
 

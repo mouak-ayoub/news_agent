@@ -27,12 +27,12 @@ class MetricExtractor:
         self,
         config: AppConfig,
         text_generator: TextGenerator,
-        prompt_service: PromptService | None = None,
+        prompt_service: PromptService,
         debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.text_generator = text_generator
-        self.prompt_service = prompt_service or PromptService()
+        self.prompt_service = prompt_service
         self.debug_output = debug_output
 
     def enrich_bundle(self, bundle: ResearchBundle) -> ResearchBundle:
@@ -88,5 +88,4 @@ class MetricExtractor:
                 debug_call.write_error(exc)
             logger.exception("metric extraction failed because model output was unusable")
             raise
-
 

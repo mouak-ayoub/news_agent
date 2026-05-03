@@ -19,7 +19,6 @@ from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
 from news_agent.services.articles.article_content_fetcher import ArticleContentFetcher
 from news_agent.services.debug.debug_output import DebugOutput
-from news_agent.services.prompts.prompt_service import PromptService
 
 
 logger = logging.getLogger(__name__)
@@ -75,13 +74,11 @@ class GoogleNewsRssSearchClient:
     def __init__(
         self,
         config: AppConfig,
-        prompt_service: PromptService | None = None,
         debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.search_config = config.search
         self.outlets = config.outlets
-        self.prompt_service = prompt_service or PromptService()
         _ = debug_output
         self.article_content_fetcher = ArticleContentFetcher(config)
         self.session = requests.Session()
@@ -513,5 +510,4 @@ def _find_child_attr(item: ET.Element, local_name: str, attr_name: str) -> str |
 
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
-
 

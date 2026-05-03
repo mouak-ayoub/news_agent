@@ -14,10 +14,7 @@ from news_agent.models.config import AppConfig
 from news_agent.models.research import ResearchIntent
 from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
-from news_agent.services.debug.debug_output import DebugOutput
-from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.llm.text_generation import ModelGenerationError
-from news_agent.services.llm.text_generation import TextGenerator
 
 
 logger = logging.getLogger(__name__)
@@ -29,14 +26,10 @@ class FreeNewsApiSearchClient:
     def __init__(
         self,
         config: AppConfig,
-        prompt_service: PromptService | None = None,
-        text_generator: TextGenerator | None = None,
-        debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
         self.search_config = config.search
         self.base_url = (self.search_config.base_url or "https://api.freenewsapi.io").rstrip("/")
-        _ = prompt_service, text_generator, debug_output
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -205,5 +198,4 @@ def _respect_rate_limit() -> None:
 
 def _domain_from_url(url: str) -> str:
     return urlparse(url).netloc.lower().removeprefix("www.")
-
 

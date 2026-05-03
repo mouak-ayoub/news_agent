@@ -397,7 +397,10 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(article_selector.calls[0][1], "Example")
 
     def test_free_config_builds_rss_search_client(self) -> None:
-        client = build_search_client(self.config)
+        client = build_search_client(
+            self.config,
+            prompt_service=PromptService(),
+        )
 
         self.assertIsInstance(client, GoogleNewsRssSearchClient)
 

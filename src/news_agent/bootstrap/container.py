@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from news_agent.models.config import AppConfig
 from news_agent.services.articles.article_content_fetcher import ArticleContentFetcher
 from news_agent.services.articles.article_selector import ArticleSelector
+from news_agent.services.articles.candidate_filter import CandidateFilter
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.llm.text_generation import build_text_generator
 from news_agent.services.prompts.prompt_service import PromptService
@@ -60,6 +61,15 @@ def build_research_service(
     debug_output: DebugOutput | None = None,
 ) -> ResearchService:
     """Build the research-side service graph."""
+    candidate_filter = CandidateFilter(
+        config=config,
+        prompt_service=prompt_service,
+        text_generator=build_text_generator(
+            config.model,
+            model_id=config.model.model_id_for_step("candidate_filter"),
+        ),
+        debug_output=debug_output,
+    )
     return ResearchService(
         client=build_search_client(
             config,
@@ -88,6 +98,11 @@ def build_research_service(
         article_selector=ArticleSelector(
             config=config,
             prompt_service=prompt_service,
+            text_generator=build_text_generator(
+                config.model,
+                model_id=config.model.model_id_for_step("article_selection"),
+            ),
+            candidate_filter=candidate_filter,
             debug_output=debug_output,
         ),
         metric_extractor=MetricExtractor(
@@ -120,5 +135,4 @@ def build_summarization_service(
         prompt_service=prompt_service,
         debug_output=debug_output,
     )
-
 

@@ -212,6 +212,7 @@ flowchart TD
 - Text generation infrastructure lives under `services/llm/`.
 - Configuration loading, validation, and resolved settings live under `configuration/`.
 - Prompt loading, debug output, and reporting each have focused subpackages.
+- Runtime services receive prompt/model dependencies from the container or provider factory.
 - Agents do orchestration only; service logic lives in `services/`.
 - Prompts live in `config/prompts/`, not embedded in provider code.
 - HTML report structure lives in `config/html/report.html`.

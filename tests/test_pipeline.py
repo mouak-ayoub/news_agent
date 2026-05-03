@@ -14,6 +14,7 @@ from news_agent.models.triage import ArticleRecord
 from news_agent.models.triage import ResearchBundle
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.debug.debug_output import create_debug_output
+from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.summarization import SummarizationService
 from news_agent.services.llm.text_generation import ModelGenerationError
 from news_agent.services.llm.text_generation import ModelOutputError
@@ -102,6 +103,7 @@ class PipelineTests(unittest.TestCase):
         research_service = FakeResearchService(self.articles)
         summarization_service = SummarizationService(
             config=self.config,
+            prompt_service=PromptService(),
             text_generator=StaticTextGenerator(
                 """
                 {
@@ -151,6 +153,7 @@ class PipelineTests(unittest.TestCase):
     def test_external_backend_bad_output_stops_instead_of_falling_back(self) -> None:
         summarization_service = SummarizationService(
             config=self.config,
+            prompt_service=PromptService(),
             text_generator=StaticTextGenerator("not json"),
         )
 
@@ -166,6 +169,7 @@ class PipelineTests(unittest.TestCase):
     def test_generation_error_stops_instead_of_falling_back(self) -> None:
         summarization_service = SummarizationService(
             config=self.config,
+            prompt_service=PromptService(),
             text_generator=FailingTextGenerator(),
         )
 
@@ -179,6 +183,7 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             summarization_service = SummarizationService(
                 config=self.config,
+                prompt_service=PromptService(),
                 text_generator=StaticTextGenerator(
                     """
                     {
@@ -249,4 +254,3 @@ def _current_three_hour_bucket() -> str:
 
 if __name__ == "__main__":
     unittest.main()
-

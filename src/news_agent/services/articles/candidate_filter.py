@@ -13,7 +13,6 @@ from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.llm.text_generation import ModelGenerationError
 from news_agent.services.llm.text_generation import ModelOutputError
 from news_agent.services.llm.text_generation import TextGenerator
-from news_agent.services.llm.text_generation import build_text_generator
 from news_agent.services.llm.text_generation import extract_json_block
 
 
@@ -26,16 +25,13 @@ class CandidateFilter:
     def __init__(
         self,
         config: AppConfig,
-        prompt_service: PromptService | None = None,
-        text_generator: TextGenerator | None = None,
+        prompt_service: PromptService,
+        text_generator: TextGenerator,
         debug_output: DebugOutput | None = None,
     ) -> None:
         self.config = config
-        self.prompt_service = prompt_service or PromptService()
-        self.text_generator = text_generator or build_text_generator(
-            config.model,
-            model_id=config.model.model_id_for_step("candidate_filter"),
-        )
+        self.prompt_service = prompt_service
+        self.text_generator = text_generator
         self.debug_output = debug_output
 
     def filter(
@@ -125,5 +121,4 @@ def _coerce_indexes(value: object, candidate_count: int) -> list[int]:
         if 0 <= index < candidate_count and index not in indexes:
             indexes.append(index)
     return indexes
-
 
