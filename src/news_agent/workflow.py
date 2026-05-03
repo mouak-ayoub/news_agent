@@ -10,6 +10,7 @@ from news_agent.agents.agent_builder import AgentGraphBuilder
 from news_agent.bootstrap.container import build_application_container
 from news_agent.models.config import AppConfig
 from news_agent.models.triage import TriageBrief
+from news_agent.services.analysis.analysis_service import AnalysisService
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.research import ResearchService
 from news_agent.services.summarization import SummarizationService
@@ -24,8 +25,13 @@ def run_triage(
     debug_output: DebugOutput | None = None,
     research_service: ResearchService | None = None,
     summarization_service: SummarizationService | None = None,
+    analysis_service: AnalysisService | None = None,
 ) -> TriageBrief:
-    if research_service is None or summarization_service is None:
+    if (
+        research_service is None
+        or summarization_service is None
+        or (analysis_service is None and config.analysis.enabled)
+    ):
         container = build_application_container(
             config=config,
             debug_output=debug_output,
@@ -34,6 +40,7 @@ def run_triage(
         summarization_service = (
             summarization_service or container.summarization_service
         )
+        analysis_service = analysis_service or container.analysis_service
 
     session_service = InMemorySessionService()
     session = asyncio.run(
@@ -46,6 +53,7 @@ def run_triage(
     agent = AgentGraphBuilder(
         research_service=research_service,
         summarization_service=summarization_service,
+        analysis_service=analysis_service,
     ).build()
     runner = Runner(
         app_name=APP_NAME,

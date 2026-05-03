@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from dataclasses import field
 
+from news_agent.models.analysis import AnalysisBundle
 from news_agent.models.research import ResearchIntent
 from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
@@ -17,3 +18,4 @@ class ResearchContext:
     candidates: list[ArticleRecord] = field(default_factory=list)
     selected_articles: list[ArticleRecord] = field(default_factory=list)
     bundle: ResearchBundle | None = None
+    analysis_bundle: AnalysisBundle | None = None

@@ -12,6 +12,7 @@ model:
   candidate_filter_model_id: gemma-4-31b-it
   article_selection_model_id: gemma-4-31b-it
   metric_extraction_model_id: gemma-4-31b-it
+  analysis_model_id: gemma-4-31b-it
   summary_model_id: gemma-4-31b-it
   max_output_tokens: 100000
   temperature: 0.25
@@ -38,7 +39,7 @@ search:
   adaptive_react_enabled: true
   adaptive_react_repair_prompt: web_search/adaptive_react_repair_planner
   adaptive_react_repair_max_tool_calls: 3
-  adaptive_react_max_repair_actions: 10
+  adaptive_react_max_repair_actions: 5
   adaptive_react_max_candidates_per_outlet: 2
   days_back: 60
   # The broad search can return up to one relevant article per configured outlet.
@@ -47,5 +48,13 @@ search:
   max_search_calls_per_run: 1
   # Prompt variants live in config/prompts/web_search.
   web_search_prompt: web_search/web_search_research_new
+
+analysis:
+  enabled: true
+  run_parallel: true
+  model_step: analysis
+  evidence_based_prompt: analysis/evidence_based_analysis
+  speculative_red_team_prompt: analysis/speculative_red_team_analysis
+  max_output_tokens: 4000
 
 outlets_file: outlets/openai_outlets.yaml

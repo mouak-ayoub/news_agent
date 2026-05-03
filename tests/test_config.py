@@ -180,6 +180,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.model.candidate_filter_model_id, "gemma-4-31b-it")
         self.assertEqual(config.model.article_selection_model_id, "gemma-4-31b-it")
         self.assertEqual(config.model.metric_extraction_model_id, "gemma-4-31b-it")
+        self.assertEqual(config.model.analysis_model_id, "gemma-4-31b-it")
         self.assertEqual(config.model.summary_model_id, "gemma-4-31b-it")
         self.assertEqual(config.search.provider, "openai_web_search")
         self.assertEqual(config.search.api_key_env, "openai_news_api")
@@ -198,8 +199,20 @@ class ConfigTests(unittest.TestCase):
             "web_search/adaptive_react_repair_planner",
         )
         self.assertEqual(config.search.adaptive_react_repair_max_tool_calls, 3)
-        self.assertEqual(config.search.adaptive_react_max_repair_actions, 4)
+        self.assertEqual(config.search.adaptive_react_max_repair_actions, 5)
         self.assertEqual(config.search.adaptive_react_max_candidates_per_outlet, 2)
+        self.assertTrue(config.analysis.enabled)
+        self.assertTrue(config.analysis.run_parallel)
+        self.assertEqual(config.analysis.model_step, "analysis")
+        self.assertEqual(
+            config.analysis.evidence_based_prompt,
+            "analysis/evidence_based_analysis",
+        )
+        self.assertEqual(
+            config.analysis.speculative_red_team_prompt,
+            "analysis/speculative_red_team_analysis",
+        )
+        self.assertEqual(config.analysis.max_output_tokens, 4000)
 
     def test_search_config_accepts_allowed_domains_settings(self) -> None:
         config = _app_config()

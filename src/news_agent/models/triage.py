@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from dataclasses import field
 import json
 
+from news_agent.models.analysis import AnalysisBundle
+
 from .research import ResearchIntent
 from .research import SearchPlan
 
@@ -108,6 +110,7 @@ class TriageBrief:
         default_factory=FactInferenceSpeculation
     )
     final_brief: str = ""
+    analysis_bundle: AnalysisBundle | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -134,4 +137,5 @@ class TriageBrief:
                 **data.get("fact_inference_speculation", {})
             ),
             final_brief=data.get("final_brief", ""),
+            analysis_bundle=AnalysisBundle.from_dict(data.get("analysis_bundle")),
         )

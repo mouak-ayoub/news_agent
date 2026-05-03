@@ -29,6 +29,7 @@ def render_html_report(brief: TriageBrief) -> str:
         country_count=str(countries),
         numeric_entries=str(numeric_entries),
         claim_count=str(len(brief.main_claims)),
+        analysis=_render_analysis(brief),
         findings=_render_findings(brief, profile_map),
         numbers=_render_numbers(brief),
         claims=_render_claims(brief),
@@ -134,6 +135,64 @@ def _render_fact_blocks(brief: TriageBrief) -> str:
     )
 
 
+def _render_analysis(brief: TriageBrief) -> str:
+    bundle = brief.analysis_bundle
+    if bundle is None:
+        return ""
+
+    sections = []
+    if bundle.evidence_based is not None:
+        analysis = bundle.evidence_based
+        sections.append(
+            '<section class="analysis evidence-based-analysis">'
+            f"<h2>{escape(analysis.title or 'Evidence-based analysis')}</h2>"
+            f"<p>{escape(analysis.overall_assessment)}</p>"
+            "<h3>Facts</h3>"
+            f'{_render_list(analysis.facts, "No facts listed.")}'
+            "<h3>Evidence-backed inferences</h3>"
+            f'{_render_list(analysis.evidence_backed_inferences, "No inferences listed.")}'
+            "<h3>Uncertainties</h3>"
+            f'{_render_list(analysis.uncertainties, "No uncertainties listed.")}'
+            "<h3>Source disagreements</h3>"
+            f'{_render_list(analysis.source_disagreements, "No source disagreements listed.")}'
+            f"<p><strong>Confidence:</strong> {escape(analysis.confidence)}</p>"
+            "</section>"
+        )
+    if bundle.speculative_red_team is not None:
+        analysis = bundle.speculative_red_team
+        sections.append(
+            '<section class="analysis speculative-red-team-analysis">'
+            f"<h2>{escape(analysis.title or 'Speculative red-team lens')}</h2>"
+            '<p class="analysis-warning">'
+            "This section is a speculative red-team exercise. It explores suspicious "
+            "interpretations and should not be read as established fact."
+            "</p>"
+            "<h3>Core suspicion</h3>"
+            f"<p>{escape(analysis.core_suspicion)}</p>"
+            "<h3>Adversarial reading</h3>"
+            f"<p>{escape(analysis.adversarial_reading)}</p>"
+            "<h3>Who benefits</h3>"
+            f'{_render_list(analysis.who_benefits, "No beneficiaries listed.")}'
+            "<h3>Suspicious patterns</h3>"
+            f'{_render_list(analysis.suspicious_patterns, "No suspicious patterns listed.")}'
+            "<h3>Possible hidden actors or incentives</h3>"
+            f'{_render_list(analysis.possible_hidden_actors_or_incentives, "No actors or incentives listed.")}'
+            "<h3>Speculative hypotheses</h3>"
+            f'{_render_list(analysis.speculative_hypotheses, "No hypotheses listed.")}'
+            "<h3>Mainstream blind spots</h3>"
+            f'{_render_list(analysis.mainstream_blind_spots, "No blind spots listed.")}'
+            "<h3>Weaknesses in this reading</h3>"
+            f'{_render_list(analysis.weaknesses_in_this_reading, "No weaknesses listed.")}'
+            "<h3>Evidence needed</h3>"
+            f'{_render_list(analysis.evidence_needed, "No evidence needs listed.")}'
+            f"<p><strong>Confidence:</strong> {escape(analysis.confidence)}</p>"
+            "</section>"
+        )
+    if not sections:
+        return ""
+    return '<div class="analysis-stack">' + "".join(sections) + "</div>"
+
+
 def _render_profile_pills(country: str, profile: SourceProfile | None) -> str:
     pills = []
     if country:
@@ -165,5 +224,3 @@ def _empty_card(text: str) -> str:
 def _slugify(value: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.lower()).strip("-")
     return normalized[:80] or "report"
-
-

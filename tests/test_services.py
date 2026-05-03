@@ -902,6 +902,8 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(observation.distinct_outlet_count, 1)
         self.assertEqual(observation.configured_outlets[0]["name"], "Example")
         self.assertEqual(observation.configured_outlets[0]["notes"], "test")
+        self.assertEqual(observation.outlets_with_candidates, ["Example"])
+        self.assertEqual(observation.outlets_without_candidates, ["Second Example"])
         self.assertEqual(len(observation.top_candidates), 2)
         self.assertEqual(observation.top_candidates[0]["snippet"], "Snippet")
         self.assertEqual(observation.top_candidates[0]["article_text"], "Article text")

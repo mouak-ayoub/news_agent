@@ -194,9 +194,55 @@
 
     .claims,
     .numbers,
-    .reasoning {
+    .reasoning,
+    .analysis-stack {
       display: grid;
       gap: 12px;
+    }
+
+    .analysis-stack {
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      margin-top: 20px;
+    }
+
+    .analysis {
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .analysis h2 {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .analysis h3 {
+      margin: 16px 0 8px;
+      font-size: 0.95rem;
+    }
+
+    .analysis p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .evidence-based-analysis {
+      border-left: 4px solid #2f6fdd;
+      background: #f7faff;
+    }
+
+    .speculative-red-team-analysis {
+      border-left: 4px solid #b45309;
+      background: #fff8ed;
+    }
+
+    .analysis-warning {
+      font-size: 0.95rem;
+      font-weight: 600;
     }
 
     ul {
@@ -250,6 +296,8 @@
         </div>
       </div>
     </section>
+
+    $analysis
 
     <section class="layout">
       <div class="stack">

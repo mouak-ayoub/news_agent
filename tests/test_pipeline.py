@@ -6,6 +6,8 @@ import tempfile
 import unittest
 
 from news_agent.workflow import run_triage
+from news_agent.models.analysis import AnalysisBundle
+from news_agent.models.analysis import EvidenceBasedAnalysis
 from news_agent.models.config import AppConfig
 from news_agent.models.config import ModelConfig
 from news_agent.models.config import OutletConfig
@@ -35,6 +37,24 @@ class FakeResearchService:
 
     def research(self, query: str) -> ResearchBundle:
         return ResearchBundle(query=query, articles=self._articles)
+
+
+class FakeAnalysisService:
+    def analyze(
+        self,
+        *,
+        query: str,
+        bundle: ResearchBundle,
+        brief,
+    ) -> AnalysisBundle:
+        _ = query, bundle
+        return AnalysisBundle(
+            evidence_based=EvidenceBasedAnalysis(
+                title="Evidence-based analysis",
+                overall_assessment=f"Analysis after summary: {brief.final_brief}",
+                facts=["Analysis fact."],
+            )
+        )
 
 
 class PipelineTests(unittest.TestCase):
@@ -149,6 +169,46 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(brief.source_findings), 2)
         self.assertEqual(brief.source_findings[0].outlet_name, "CNN")
         self.assertIn("framed differently", brief.final_brief)
+
+    def test_analysis_step_adds_analysis_bundle_to_context(self) -> None:
+        research_service = FakeResearchService(self.articles)
+        summarization_service = SummarizationService(
+            config=self.config,
+            prompt_service=PromptService(),
+            text_generator=StaticTextGenerator(
+                """
+                {
+                  "query": "placeholder",
+                  "main_claims": [],
+                  "entities": {},
+                  "source_profiles": [],
+                  "source_findings": [],
+                  "framing_analysis": [],
+                  "historical_context": [],
+                  "uncertainties": [],
+                  "fact_inference_speculation": {},
+                  "final_brief": "Summary before analysis."
+                }
+                """
+            ),
+        )
+
+        brief = run_triage(
+            "What changed?",
+            self.config,
+            research_service=research_service,
+            summarization_service=summarization_service,
+            analysis_service=FakeAnalysisService(),
+        )
+
+        self.assertIsNotNone(brief.analysis_bundle)
+        assert brief.analysis_bundle is not None
+        self.assertIsNotNone(brief.analysis_bundle.evidence_based)
+        assert brief.analysis_bundle.evidence_based is not None
+        self.assertIn(
+            "Summary before analysis",
+            brief.analysis_bundle.evidence_based.overall_assessment,
+        )
 
     def test_external_backend_bad_output_stops_instead_of_falling_back(self) -> None:
         summarization_service = SummarizationService(

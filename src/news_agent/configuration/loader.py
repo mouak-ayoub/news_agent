@@ -7,6 +7,7 @@ import yaml
 
 from news_agent.configuration.validation import AppConfigValidator
 from news_agent.models.config import AppConfig
+from news_agent.models.config import AnalysisConfig
 from news_agent.models.config import ModelConfig
 from news_agent.models.config import OutletConfig
 from news_agent.models.config import SearchConfig
@@ -28,6 +29,7 @@ class ConfigLoader:
             search=SearchConfig(**data["search"]),
             outlets=[OutletConfig(**outlet) for outlet in self._load_outlets(data, config_path)],
             config_path=config_path,
+            analysis=AnalysisConfig(**data.get("analysis", {})),
         )
         AppConfigValidator().validate(config)
         return config
@@ -117,8 +119,8 @@ def _normalize_model_config(model_data: dict) -> dict:
         "candidate_filter_model_id",
         "article_selection_model_id",
         "metric_extraction_model_id",
+        "analysis_model_id",
     ):
         normalized.setdefault(field_name, default_step_model_id)
     return normalized
-
 

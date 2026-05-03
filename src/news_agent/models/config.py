@@ -10,6 +10,7 @@ class ModelConfig:
     backend: str = "heuristic"
     api_key_env: str = ""
     summary_model_id: str = ""
+    analysis_model_id: str = ""
     max_output_tokens: int = 0
     temperature: float = 0.0
     question_analysis_model_id: str = ""
@@ -31,11 +32,22 @@ class ModelConfig:
             "article_selection": self.article_selection_model_id,
             "metric_extraction": self.metric_extraction_model_id,
             "summarization": self.summary_model_id,
+            "analysis": self.analysis_model_id,
         }
         configured = step_fields.get(step, "")
         if configured:
             return configured
         return self.summary_model_id
+
+
+@dataclass(slots=True)
+class AnalysisConfig:
+    enabled: bool = False
+    run_parallel: bool = True
+    model_step: str = "analysis"
+    evidence_based_prompt: str = "analysis/evidence_based_analysis"
+    speculative_red_team_prompt: str = "analysis/speculative_red_team_analysis"
+    max_output_tokens: int = 4000
 
 
 @dataclass(slots=True)
@@ -86,3 +98,4 @@ class AppConfig:
     search: SearchConfig
     outlets: list[OutletConfig]
     config_path: Path
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)

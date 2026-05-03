@@ -10,8 +10,12 @@ import unittest
 
 class CliIntegrationTests(unittest.TestCase):
     def test_main_cli_runs_end_to_end_with_yaml_config(self) -> None:
+        if os.environ.get("NEWS_AGENT_RUN_LIVE_TESTS") != "1":
+            self.skipTest("set NEWS_AGENT_RUN_LIVE_TESTS=1 to run live CLI integration")
         if not os.environ.get("openai_news_api"):
             self.skipTest("openai_news_api is not set for integration test.")
+        if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
+            self.skipTest("GEMINI_API_KEY or GOOGLE_API_KEY is not set for integration test.")
 
         project_root = Path(__file__).resolve().parents[1]
         config_path = project_root / "config" / "news_agent_openai.yaml"

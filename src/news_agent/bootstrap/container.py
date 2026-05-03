@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace
 
 from news_agent.models.config import AppConfig
+from news_agent.services.analysis.analysis_service import AnalysisService
 from news_agent.services.articles.article_content_fetcher import ArticleContentFetcher
 from news_agent.services.articles.article_selector import ArticleSelector
 from news_agent.services.articles.candidate_filter import CandidateFilter
@@ -34,6 +36,7 @@ class ApplicationContainer:
     prompt_service: PromptService
     research_service: ResearchService
     summarization_service: SummarizationService
+    analysis_service: AnalysisService | None = None
     debug_output: DebugOutput | None = None
 
 
@@ -53,12 +56,18 @@ def build_application_container(
         prompt_service=prompt_service,
         debug_output=debug_output,
     )
+    analysis_service = build_analysis_service(
+        config=config,
+        prompt_service=prompt_service,
+        debug_output=debug_output,
+    )
 
     return ApplicationContainer(
         config=config,
         prompt_service=prompt_service,
         research_service=research_service,
         summarization_service=summarization_service,
+        analysis_service=analysis_service,
         debug_output=debug_output,
     )
 
@@ -156,4 +165,35 @@ def build_summarization_service(
         ),
         prompt_service=prompt_service,
         debug_output=debug_output,
+    )
+
+
+def build_analysis_service(
+    *,
+    config: AppConfig,
+    prompt_service: PromptService,
+    debug_output: DebugOutput | None = None,
+) -> AnalysisService | None:
+    """Build the optional post-summary analysis service."""
+    if not config.analysis.enabled:
+        return None
+
+    analysis_model_config = config.model
+    if config.analysis.max_output_tokens > 0:
+        analysis_model_config = replace(
+            config.model,
+            max_output_tokens=config.analysis.max_output_tokens,
+        )
+    return AnalysisService(
+        prompt_service=prompt_service,
+        text_generator=build_text_generator(
+            analysis_model_config,
+            model_id=analysis_model_config.model_id_for_step(
+                config.analysis.model_step
+            ),
+        ),
+        debug_output=debug_output,
+        evidence_prompt=config.analysis.evidence_based_prompt,
+        speculative_prompt=config.analysis.speculative_red_team_prompt,
+        run_parallel=config.analysis.run_parallel,
     )

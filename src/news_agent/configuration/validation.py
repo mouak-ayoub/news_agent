@@ -31,6 +31,10 @@ class AppConfigValidator:
             raise ConfigValidationError(
                 "`model.max_output_tokens` must be greater than or equal to 0."
             )
+        if config.analysis.max_output_tokens < 0:
+            raise ConfigValidationError(
+                "`analysis.max_output_tokens` must be greater than or equal to 0."
+            )
         if not config.outlets:
             raise ConfigValidationError("Config must define at least one outlet.")
 
@@ -83,4 +87,3 @@ class AppConfigValidator:
 def _free_news_api_key_env(config: AppConfig) -> str:
     """Resolve the configured FreeNewsAPI key env var name without reading it."""
     return config.search.api_key_env.strip() or "news_triage_codex_app"
-

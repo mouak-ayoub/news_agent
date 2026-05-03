@@ -36,6 +36,8 @@ class AdaptiveObservation:
     outlet_counts: dict[str, int]
     distinct_outlet_count: int
     configured_outlets: list[dict[str, str]]
+    outlets_with_candidates: list[str]
+    outlets_without_candidates: list[str]
     top_candidates: list[dict[str, str]]
     previous_actions: list[dict[str, Any]]
     remaining_repair_actions: int
@@ -46,6 +48,8 @@ class AdaptiveObservation:
             "outlet_counts": self.outlet_counts,
             "distinct_outlet_count": self.distinct_outlet_count,
             "configured_outlets": self.configured_outlets,
+            "outlets_with_candidates": self.outlets_with_candidates,
+            "outlets_without_candidates": self.outlets_without_candidates,
             "top_candidates": self.top_candidates,
             "previous_actions": self.previous_actions,
             "remaining_repair_actions": self.remaining_repair_actions,
@@ -100,6 +104,18 @@ class AdaptiveReactRepairPlanner:
                 outlet_counts.get(article.outlet_name, 0) + 1
             )
 
+        configured_outlet_names = [outlet.name for outlet in outlets]
+        outlets_with_candidates = [
+            outlet_name
+            for outlet_name in configured_outlet_names
+            if outlet_counts.get(outlet_name, 0) > 0
+        ]
+        outlets_without_candidates = [
+            outlet_name
+            for outlet_name in configured_outlet_names
+            if outlet_counts.get(outlet_name, 0) == 0
+        ]
+
         top_candidates = [
             {
                 "outlet_name": article.outlet_name,
@@ -118,6 +134,8 @@ class AdaptiveReactRepairPlanner:
             outlet_counts=outlet_counts,
             distinct_outlet_count=len(outlet_counts),
             configured_outlets=[_outlet_payload(outlet) for outlet in outlets],
+            outlets_with_candidates=outlets_with_candidates,
+            outlets_without_candidates=outlets_without_candidates,
             top_candidates=top_candidates,
             previous_actions=[
                 previous_action.to_dict()
@@ -522,6 +540,16 @@ def _observation_lines(index: int, observation: AdaptiveObservation) -> list[str
         for outlet_name, count in observation.outlet_counts.items()
     )
     if not observation.outlet_counts:
+        lines.append("- none")
+
+    lines.append("Outlets with candidates:")
+    lines.extend(f"- {name}" for name in observation.outlets_with_candidates)
+    if not observation.outlets_with_candidates:
+        lines.append("- none")
+
+    lines.append("Outlets without candidates:")
+    lines.extend(f"- {name}" for name in observation.outlets_without_candidates)
+    if not observation.outlets_without_candidates:
         lines.append("- none")
 
     lines.append("Top candidates:")

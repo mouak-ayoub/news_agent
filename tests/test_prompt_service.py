@@ -107,6 +107,33 @@ class PromptServiceTests(unittest.TestCase):
         self.assertIn("Editorial standards:", prompt)
         self.assertIn("briefing writer", prompt)
 
+    def test_evidence_based_prompt_renders(self) -> None:
+        prompt = PromptService().build(
+            "analysis/evidence_based_analysis",
+            evidence_bundle_json="{}",
+        )
+
+        self.assertIn("Editorial standards:", prompt)
+        self.assertIn("You are an evidence-based news analyst.", prompt)
+        self.assertIn("separate facts from evidence-backed inference", prompt)
+        self.assertIn('"overall_assessment"', prompt)
+
+    def test_speculative_red_team_prompt_renders(self) -> None:
+        prompt = PromptService().build(
+            "analysis/speculative_red_team_analysis",
+            evidence_bundle_json="{}",
+        )
+
+        self.assertIn("Editorial standards:", prompt)
+        self.assertIn("You are a hard-nosed speculative red-team news analyst.", prompt)
+        self.assertIn("Do not give a weak or polite alternative reading.", prompt)
+        self.assertIn("Do not present speculation as fact.", prompt)
+        self.assertIn("Do not blame protected ethnic, religious, or national groups", prompt)
+        self.assertIn('"adversarial_reading"', prompt)
+        self.assertIn('"who_benefits"', prompt)
+        self.assertIn('"mainstream_blind_spots"', prompt)
+        self.assertIn('"speculative_hypotheses"', prompt)
+
     def test_web_search_prompt_renders_with_editorial_standards(self) -> None:
         prompt = PromptService().build(
             "web_search/web_search_research_new",
@@ -135,6 +162,10 @@ class PromptServiceTests(unittest.TestCase):
         self.assertIn("Editorial standards:", prompt)
         self.assertIn("You are a ReAct-style news retrieval repair planner.", prompt)
         self.assertIn("You, the repair planner, must interpret the observation.", prompt)
+        self.assertIn("The objective is good evidence plus maximum outlet coverage.", prompt)
+        self.assertIn("Prefer continuing until 8-12 distinct relevant outlets", prompt)
+        self.assertIn("choose allowed_outlets mostly from outlets_without_candidates", prompt)
+        self.assertIn("Choose 3-6 outlets per repair search", prompt)
         self.assertIn('"diagnosis"', prompt)
         self.assertIn(
             'Do not choose "search" only because many configured outlets are missing.',
@@ -196,6 +227,16 @@ class PromptServiceTests(unittest.TestCase):
                 "summarization",
                 query="What changed?",
                 article_payload_json="[]",
+            ),
+            config.analysis.evidence_based_prompt: self._render_prompt(
+                service,
+                config.analysis.evidence_based_prompt,
+                evidence_bundle_json="{}",
+            ),
+            config.analysis.speculative_red_team_prompt: self._render_prompt(
+                service,
+                config.analysis.speculative_red_team_prompt,
+                evidence_bundle_json="{}",
             ),
             config.search.web_search_prompt: self._render_prompt(
                 service,
