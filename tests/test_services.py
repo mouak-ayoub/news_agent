@@ -885,7 +885,7 @@ class ServiceTests(unittest.TestCase):
         self.assertFalse(gateway.request.use_site_query_filters)
         self.assertNotIn("site:example.com", gateway.request.search_query)
 
-    def test_adaptive_observation_counts_outlets_and_missing_configured_outlets(self) -> None:
+    def test_adaptive_observation_records_raw_facts_only(self) -> None:
         planner = self._adaptive_planner()
 
         observation = planner.build_observation(
@@ -894,13 +894,60 @@ class ServiceTests(unittest.TestCase):
                 self._article("Example", "https://example.com/second"),
             ],
             outlets=self.config.outlets,
+            remaining_repair_actions=2,
         )
 
         self.assertEqual(observation.candidate_count, 2)
         self.assertEqual(observation.outlet_counts, {"Example": 2})
-        self.assertEqual(observation.missing_configured_outlets, ["Second Example"])
-        self.assertEqual(observation.dominant_outlet, "Example")
+        self.assertEqual(observation.distinct_outlet_count, 1)
+        self.assertEqual(observation.configured_outlets[0]["name"], "Example")
+        self.assertEqual(observation.configured_outlets[0]["notes"], "test")
         self.assertEqual(len(observation.top_candidates), 2)
+        self.assertEqual(observation.top_candidates[0]["snippet"], "Snippet")
+        self.assertEqual(observation.top_candidates[0]["article_text"], "Article text")
+        self.assertEqual(observation.previous_actions, [])
+        self.assertEqual(observation.remaining_repair_actions, 2)
+        self.assertNotIn("missing_configured_outlets", observation.to_dict())
+        self.assertNotIn("dominant_outlet", observation.to_dict())
+
+    def test_adaptive_decision_preserves_llm_diagnosis(self) -> None:
+        planner = self._adaptive_planner(
+            text=json.dumps(
+                {
+                    "diagnosis": {
+                        "quality": "partial",
+                        "is_outlet_diverse": True,
+                        "is_answer_bearing": False,
+                        "dominance_assessment": "No outlet dominates.",
+                        "strong_candidates": ["Example result"],
+                        "weak_candidates": ["Second result"],
+                        "missing_useful_outlets": ["Second Example"],
+                        "problem": "Needs a stronger second source.",
+                    },
+                    "action": "search",
+                    "reason": "Target the missing useful outlet.",
+                    "search_query": "focused repair query",
+                    "allowed_outlets": ["Second Example"],
+                }
+            )
+        )
+        observation = planner.build_observation(
+            articles=[self._article("Example", "https://example.com/first")],
+            outlets=self.config.outlets,
+        )
+
+        decision = planner.decide(
+            query="What changed?",
+            plan=SearchPlan(queries=["global query"]),
+            intent=None,
+            observation=observation,
+            outlets=self.config.outlets,
+        )
+
+        self.assertEqual(decision.action, "search")
+        self.assertEqual(decision.diagnosis["quality"], "partial")
+        self.assertEqual(decision.diagnosis["missing_useful_outlets"], ["Second Example"])
+        self.assertEqual(decision.allowed_outlets, ["Second Example"])
 
     def test_adaptive_decision_finish_skips_repair(self) -> None:
         gateway = SequencedFakeOpenAIWebSearchGateway(
@@ -1012,6 +1059,44 @@ class ServiceTests(unittest.TestCase):
         self.assertIsNotNone(repair_job)
         assert repair_job is not None
         self.assertEqual([outlet.name for outlet in repair_job.outlets], ["Example"])
+
+    def test_adaptive_decision_finishes_when_no_allowed_outlets_are_valid(self) -> None:
+        planner = self._adaptive_planner(
+            text=json.dumps(
+                {
+                    "diagnosis": {
+                        "quality": "partial",
+                        "is_outlet_diverse": False,
+                        "is_answer_bearing": False,
+                        "dominance_assessment": "The set is weak.",
+                        "strong_candidates": [],
+                        "weak_candidates": ["Example result"],
+                        "missing_useful_outlets": ["Unknown Outlet"],
+                        "problem": "The requested repair outlet is not configured.",
+                    },
+                    "action": "search",
+                    "reason": "Try an unknown outlet.",
+                    "search_query": "focused repair query",
+                    "allowed_outlets": ["Unknown Outlet"],
+                }
+            )
+        )
+        observation = planner.build_observation(
+            articles=[self._article("Example", "https://example.com/first")],
+            outlets=self.config.outlets,
+        )
+
+        decision = planner.decide(
+            query="What changed?",
+            plan=None,
+            intent=None,
+            observation=observation,
+            outlets=self.config.outlets,
+        )
+
+        self.assertEqual(decision.action, "finish")
+        self.assertEqual(decision.allowed_outlets, [])
+        self.assertEqual(decision.diagnosis["quality"], "partial")
 
     def test_adaptive_repair_job_uses_allowed_domains(self) -> None:
         repair_job = self._adaptive_planner().build_repair_job(

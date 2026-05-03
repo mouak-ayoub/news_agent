@@ -26,7 +26,7 @@ search:
   # Leave empty or remove this key for non-reasoning models like gpt-4.1.
   web_search_reasoning_effort: low
   # Limits built-in OpenAI web-search calls per search job.
-  web_search_max_tool_calls: 8
+  web_search_max_tool_calls: 3
   # Keeps the final candidate JSON concise.
   web_search_text_verbosity: low
   # Use OpenAI web_search API-level domain filtering instead of prompt-only site: filters.
@@ -37,8 +37,8 @@ search:
   web_search_use_site_query_filters: false
   adaptive_react_enabled: true
   adaptive_react_repair_prompt: web_search/adaptive_react_repair_planner
-  adaptive_react_repair_max_tool_calls: 2
-  adaptive_react_max_repair_actions: 2
+  adaptive_react_repair_max_tool_calls: 3
+  adaptive_react_max_repair_actions: 10
   adaptive_react_max_candidates_per_outlet: 2
   days_back: 60
   # The broad search can return up to one relevant article per configured outlet.

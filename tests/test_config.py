@@ -185,7 +185,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.search.api_key_env, "openai_news_api")
         self.assertEqual(config.search.web_search_model_id, "gpt-5.4-mini")
         self.assertEqual(config.search.web_search_reasoning_effort, "low")
-        self.assertEqual(config.search.web_search_max_tool_calls, 8)
+        self.assertEqual(config.search.web_search_max_tool_calls, 3)
         self.assertEqual(config.search.web_search_text_verbosity, "low")
         self.assertTrue(config.search.web_search_use_allowed_domains)
         self.assertTrue(config.search.web_search_include_sources)
@@ -197,8 +197,8 @@ class ConfigTests(unittest.TestCase):
             config.search.adaptive_react_repair_prompt,
             "web_search/adaptive_react_repair_planner",
         )
-        self.assertEqual(config.search.adaptive_react_repair_max_tool_calls, 2)
-        self.assertEqual(config.search.adaptive_react_max_repair_actions, 2)
+        self.assertEqual(config.search.adaptive_react_repair_max_tool_calls, 3)
+        self.assertEqual(config.search.adaptive_react_max_repair_actions, 4)
         self.assertEqual(config.search.adaptive_react_max_candidates_per_outlet, 2)
 
     def test_search_config_accepts_allowed_domains_settings(self) -> None:

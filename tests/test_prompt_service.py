@@ -134,6 +134,12 @@ class PromptServiceTests(unittest.TestCase):
 
         self.assertIn("Editorial standards:", prompt)
         self.assertIn("You are a ReAct-style news retrieval repair planner.", prompt)
+        self.assertIn("You, the repair planner, must interpret the observation.", prompt)
+        self.assertIn('"diagnosis"', prompt)
+        self.assertIn(
+            'Do not choose "search" only because many configured outlets are missing.',
+            prompt,
+        )
 
     def test_configured_major_prompt_templates_render(self) -> None:
         root = Path(__file__).resolve().parents[1]
