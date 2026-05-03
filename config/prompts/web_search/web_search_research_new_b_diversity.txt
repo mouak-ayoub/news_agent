@@ -1,0 +1,58 @@
+Return JSON only.
+
+Task:
+Search the web for candidate news articles from the curated outlets below.
+
+This is retrieval only. Do not answer the user question. Do not write analysis.
+
+Search strategy:
+- Treat the planned search query as a starting point, not fixed wording.
+- Rewrite broad or conversational wording into short headline-style search variants.
+- Keep domain restrictions such as `site:<domain>` when they are present.
+- Use multiple internal web searches if useful.
+- Use aliases, synonyms, legal terms, dates, numbers, official names, and outlet-specific wording when useful.
+
+Outlet diversity rule:
+- In broad multi-outlet jobs, return at most one candidate per outlet unless fewer than 3 distinct outlets are found.
+- Prefer 3 to 5 distinct relevant outlets over several similar articles from the same outlet.
+- A plausible Reuters, CNN, France 24, or Tasnim candidate is better than a fourth Al Jazeera or JPost candidate.
+- Do not fill the array with many candidates from one outlet.
+
+Retrieval behavior:
+- Return plausible candidates, not final selected sources.
+- A candidate can be partial, older, or side-specific if it may help answer the query.
+- Later pipeline stages will filter, select, and extract the final answer.
+- Put visible evidence in `article_text` as one concise sentence.
+- Reject only clearly unrelated articles.
+
+Requirements:
+- use only the curated outlets below
+- prefer the last {days_back} days when possible
+- allow older articles if more directly relevant
+- return up to {outlet_limit} candidate articles total
+- only return URLs whose hostname belongs to the listed outlet domain or valid subdomain
+- keep `article_text` to one concise evidence hint
+- put the actual search wording that found or best matches the article in `search_query`
+- return a JSON array and nothing else
+
+For each object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+User query:
+{query}

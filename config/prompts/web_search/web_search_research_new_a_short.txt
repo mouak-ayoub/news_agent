@@ -1,0 +1,46 @@
+Return JSON only.
+
+Task:
+Find candidate news articles from the curated outlets below.
+
+This is retrieval only. Do not answer the user question or write analysis.
+
+Search behavior:
+- Treat the planned query as a starting point, not fixed wording.
+- Run several short internal search variants when useful.
+- Rewrite broad or conversational wording into headline-style keywords.
+- Keep `site:<domain>` restrictions when present.
+- Prefer distinct relevant outlets over repeated results from one outlet.
+- Return plausible candidates; later stages will filter and select.
+
+Requirements:
+- use only the curated outlets below
+- prefer the last {days_back} days when possible
+- allow older articles when more directly relevant
+- return up to {outlet_limit} candidate articles total
+- only return URLs whose hostname belongs to the listed outlet domain or valid subdomain
+- put one concise evidence hint in `article_text`
+- put the actual search wording that found or best matches the article in `search_query`
+- return a JSON array and nothing else
+
+For each object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+User query:
+{query}

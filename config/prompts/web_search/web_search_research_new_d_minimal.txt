@@ -1,0 +1,29 @@
+Return JSON only.
+
+Find candidate news articles from the curated outlets below. This is retrieval only; do not answer the question.
+
+Use the planned search query as a starting point. Keep any `site:<domain>` filters, run internal search variants if useful, and prefer outlet diversity.
+
+Return up to {outlet_limit} plausible candidates from the last {days_back} days when possible. Use older direct matches if needed. Only use listed outlet domains or valid subdomains. Put one concise evidence hint in `article_text`, and put the actual search wording in `search_query`.
+
+For each object return exactly:
+- title
+- url
+- outlet_name
+- domain
+- country
+- medium_type
+- orientation
+- published_at
+- snippet
+- article_text
+- search_query
+
+Curated outlets:
+{outlets_text}
+
+Planned search queries:
+{planned_queries_json}
+
+User query:
+{query}
