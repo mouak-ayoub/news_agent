@@ -120,6 +120,21 @@ class PromptServiceTests(unittest.TestCase):
         self.assertIn("Editorial standards:", prompt)
         self.assertIn("You are a news retrieval specialist.", prompt)
 
+    def test_repair_prompt_renders_with_editorial_standards(self) -> None:
+        prompt = PromptService().build(
+            "web_search/adaptive_react_repair_planner",
+            query="What changed?",
+            outlets_json='[{"name": "Example"}]',
+            planned_queries_json='["What changed?"]',
+            previous_actions_json="[]",
+            remaining_repair_actions=2,
+            intent_json="{}",
+            observation_json="{}",
+        )
+
+        self.assertIn("Editorial standards:", prompt)
+        self.assertIn("You are a ReAct-style news retrieval repair planner.", prompt)
+
     def test_configured_major_prompt_templates_render(self) -> None:
         root = Path(__file__).resolve().parents[1]
         config = load_app_config(root / "config" / "news_agent_openai.yaml")
@@ -187,6 +202,17 @@ class PromptServiceTests(unittest.TestCase):
                 ),
                 planned_queries_json='["What changed?"]',
                 query="What changed?",
+            ),
+            config.search.adaptive_react_repair_prompt: self._render_prompt(
+                service,
+                config.search.adaptive_react_repair_prompt,
+                query="What changed?",
+                outlets_json='[{"name": "Example"}]',
+                planned_queries_json='["What changed?"]',
+                previous_actions_json="[]",
+                remaining_repair_actions=2,
+                intent_json="{}",
+                observation_json="{}",
             ),
         }
 

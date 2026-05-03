@@ -60,6 +60,11 @@ class SearchConfig:
     web_search_tool_choice: str = "required"
     web_search_search_context_size: str = "medium"
     web_search_use_site_query_filters: bool = False
+    adaptive_react_enabled: bool = False
+    adaptive_react_repair_prompt: str = "web_search/adaptive_react_repair_planner"
+    adaptive_react_repair_max_tool_calls: int = 2
+    adaptive_react_max_repair_actions: int = 2
+    adaptive_react_max_candidates_per_outlet: int = 2
 
 
 @dataclass(slots=True)

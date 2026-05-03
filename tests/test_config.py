@@ -192,6 +192,14 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.search.web_search_tool_choice, "required")
         self.assertEqual(config.search.web_search_search_context_size, "medium")
         self.assertFalse(config.search.web_search_use_site_query_filters)
+        self.assertTrue(config.search.adaptive_react_enabled)
+        self.assertEqual(
+            config.search.adaptive_react_repair_prompt,
+            "web_search/adaptive_react_repair_planner",
+        )
+        self.assertEqual(config.search.adaptive_react_repair_max_tool_calls, 2)
+        self.assertEqual(config.search.adaptive_react_max_repair_actions, 2)
+        self.assertEqual(config.search.adaptive_react_max_candidates_per_outlet, 2)
 
     def test_search_config_accepts_allowed_domains_settings(self) -> None:
         config = _app_config()
@@ -271,6 +279,12 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(settings.reasoning_effort, "high")
         self.assertEqual(settings.max_tool_calls, 3)
         self.assertEqual(settings.text_verbosity, "medium")
+        self.assertFalse(settings.adaptive_react_enabled)
+        self.assertEqual(
+            settings.adaptive_react_repair_prompt,
+            "web_search/adaptive_react_repair_planner",
+        )
+        self.assertEqual(settings.adaptive_react_max_repair_actions, 2)
 
     def test_validator_fails_on_invalid_max_sources(self) -> None:
         config = _app_config()

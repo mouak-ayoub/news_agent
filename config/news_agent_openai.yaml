@@ -35,6 +35,11 @@ search:
   web_search_tool_choice: required
   web_search_search_context_size: medium
   web_search_use_site_query_filters: false
+  adaptive_react_enabled: true
+  adaptive_react_repair_prompt: web_search/adaptive_react_repair_planner
+  adaptive_react_repair_max_tool_calls: 2
+  adaptive_react_max_repair_actions: 2
+  adaptive_react_max_candidates_per_outlet: 2
   days_back: 60
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20

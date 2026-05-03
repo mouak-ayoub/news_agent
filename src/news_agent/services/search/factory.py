@@ -5,6 +5,7 @@ from news_agent.models.config import AppConfig
 from news_agent.services.articles.article_deduplicator import ArticleDeduplicator
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.prompts.prompt_service import PromptService
+from news_agent.services.llm.text_generation import build_text_generator
 from news_agent.services.llm.text_generation import ModelGenerationError
 from .base import SearchClient
 from .free_news_api import FreeNewsApiSearchClient
@@ -40,6 +41,12 @@ def build_search_client(
         prompt_builder = OpenAIWebSearchPromptBuilder(prompt_service)
         normalizer = OpenAIArticleNormalizer()
         deduplicator = ArticleDeduplicator()
+        repair_planner_generator = None
+        if config.search.adaptive_react_enabled:
+            repair_planner_generator = build_text_generator(
+                config.model,
+                model_id=config.model.model_id_for_step("query_planning"),
+            )
         return OpenAIWebSearchClient(
             config=config,
             settings=settings,
@@ -49,5 +56,7 @@ def build_search_client(
             gateway=gateway,
             normalizer=normalizer,
             deduplicator=deduplicator,
+            repair_planner_generator=repair_planner_generator,
+            debug_output=debug_output,
         )
     raise ModelGenerationError(f"Unsupported search provider: {config.search.provider}")

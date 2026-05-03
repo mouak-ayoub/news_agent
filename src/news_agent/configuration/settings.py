@@ -22,6 +22,11 @@ class OpenAIWebSearchSettings:
     tool_choice: str = "required"
     search_context_size: str = "medium"
     use_site_query_filters: bool = False
+    adaptive_react_enabled: bool = False
+    adaptive_react_repair_prompt: str = "web_search/adaptive_react_repair_planner"
+    adaptive_react_repair_max_tool_calls: int = 2
+    adaptive_react_max_repair_actions: int = 2
+    adaptive_react_max_candidates_per_outlet: int = 2
 
 
 def resolve_openai_web_search_settings(config: AppConfig) -> OpenAIWebSearchSettings:
@@ -53,5 +58,15 @@ def resolve_openai_web_search_settings(config: AppConfig) -> OpenAIWebSearchSett
         tool_choice=config.search.web_search_tool_choice,
         search_context_size=config.search.web_search_search_context_size,
         use_site_query_filters=config.search.web_search_use_site_query_filters,
+        adaptive_react_enabled=config.search.adaptive_react_enabled,
+        adaptive_react_repair_prompt=config.search.adaptive_react_repair_prompt,
+        adaptive_react_repair_max_tool_calls=(
+            config.search.adaptive_react_repair_max_tool_calls
+        ),
+        adaptive_react_max_repair_actions=(
+            config.search.adaptive_react_max_repair_actions
+        ),
+        adaptive_react_max_candidates_per_outlet=(
+            config.search.adaptive_react_max_candidates_per_outlet
+        ),
     )
-

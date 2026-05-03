@@ -11,6 +11,7 @@ from news_agent.models.config import AppConfig
 from news_agent.models.config import ModelConfig
 from news_agent.models.config import OutletConfig
 from news_agent.models.config import SearchConfig
+from news_agent.models.generation import GenerationResult
 from news_agent.models.research import ResearchIntent
 from news_agent.models.research import SearchPlan
 from news_agent.models.triage import ArticleRecord
@@ -32,6 +33,8 @@ from news_agent.services.research.steps import SelectArticlesStep
 from news_agent.services.search import build_search_client
 from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
 from news_agent.services.search.openai import OpenAIWebSearchClient
+from news_agent.services.search.openai.adaptive_react import AdaptiveReactRepairPlanner
+from news_agent.services.search.openai.adaptive_react import RepairDecision
 from news_agent.services.search.openai.article_normalizer import OpenAIArticleNormalizer
 from news_agent.services.search.openai.gateway import DebuggingOpenAIWebSearchGateway
 from news_agent.services.search.openai.gateway import OpenAIWebSearchGateway
@@ -46,6 +49,7 @@ from news_agent.services.search.openai.job_planner import WebSearchJob
 from news_agent.services.search.openai.prompt_builder import OpenAIWebSearchPromptBuilder
 from news_agent.services.search.rss import GoogleNewsRssSearchClient
 from news_agent.services.llm.text_generation import ModelOutputError
+from news_agent.services.llm.text_generation import StaticTextGenerator
 
 
 class FakeSearchClient:
@@ -217,6 +221,30 @@ class FakeOpenAIWebSearchGateway:
             raw_text='[{"title":"Example","url":"https://example.com/a"}]',
             response_dump='{"status":"completed"}',
         )
+
+
+class SequencedFakeOpenAIWebSearchGateway:
+    def __init__(self, responses: list[OpenAIWebSearchResponse]) -> None:
+        self.responses = list(responses)
+        self.requests: list[OpenAIWebSearchRequest] = []
+
+    def search(self, request: OpenAIWebSearchRequest) -> OpenAIWebSearchResponse:
+        self.requests.append(request)
+        if not self.responses:
+            raise AssertionError("No fake OpenAI web-search response remains.")
+        return self.responses.pop(0)
+
+
+class SequencedTextGenerator:
+    def __init__(self, responses: list[str]) -> None:
+        self.responses = list(responses)
+        self.prompts: list[str] = []
+
+    def generate(self, prompt: str) -> GenerationResult:
+        self.prompts.append(prompt)
+        if not self.responses:
+            raise AssertionError("No fake text-generation response remains.")
+        return GenerationResult(text=self.responses.pop(0))
 
 
 class FakeOpenAIWebSearchPromptBuilder:
@@ -857,6 +885,624 @@ class ServiceTests(unittest.TestCase):
         self.assertFalse(gateway.request.use_site_query_filters)
         self.assertNotIn("site:example.com", gateway.request.search_query)
 
+    def test_adaptive_observation_counts_outlets_and_missing_configured_outlets(self) -> None:
+        planner = self._adaptive_planner()
+
+        observation = planner.build_observation(
+            articles=[
+                self._article("Example", "https://example.com/first"),
+                self._article("Example", "https://example.com/second"),
+            ],
+            outlets=self.config.outlets,
+        )
+
+        self.assertEqual(observation.candidate_count, 2)
+        self.assertEqual(observation.outlet_counts, {"Example": 2})
+        self.assertEqual(observation.missing_configured_outlets, ["Second Example"])
+        self.assertEqual(observation.dominant_outlet, "Example")
+        self.assertEqual(len(observation.top_candidates), 2)
+
+    def test_adaptive_decision_finish_skips_repair(self) -> None:
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                            search_query="global query",
+                        )
+                    ]
+                )
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_text=json.dumps(
+                {
+                    "action": "finish",
+                    "reason": "The first result is good enough.",
+                    "search_query": "",
+                    "allowed_outlets": [],
+                }
+            ),
+        )
+
+        articles = client.search_candidates(
+            "What changed?",
+            plan=SearchPlan(queries=["global query"]),
+        )
+
+        self.assertEqual(len(articles), 1)
+        self.assertEqual(len(gateway.requests), 1)
+
+    def test_adaptive_decision_search_runs_one_repair(self) -> None:
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                            search_query="global query",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Repair result",
+                            url="https://second.example.com/repair",
+                            outlet_name="Second Example",
+                            domain="second.example.com",
+                            search_query="focused repair query",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_texts=[
+                json.dumps(
+                    {
+                        "action": "search",
+                        "reason": "Second Example is missing.",
+                        "search_query": "focused repair query",
+                        "allowed_outlets": ["Second Example"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "action": "finish",
+                        "reason": "The repair added enough diversity.",
+                        "search_query": "",
+                        "allowed_outlets": [],
+                    }
+                ),
+            ],
+        )
+
+        articles = client.search_candidates(
+            "What changed?",
+            plan=SearchPlan(queries=["global query"]),
+        )
+
+        self.assertEqual(len(gateway.requests), 2)
+        self.assertEqual(gateway.requests[1].search_query, "focused repair query")
+        self.assertEqual(gateway.requests[1].max_tool_calls, 2)
+        self.assertEqual(
+            [article.outlet_name for article in articles],
+            ["Example", "Second Example"],
+        )
+
+    def test_adaptive_rejects_unknown_outlets(self) -> None:
+        repair_job = self._adaptive_planner().build_repair_job(
+            decision=RepairDecision(
+                action="search",
+                reason="Need a focused repair.",
+                search_query="focused query",
+                allowed_outlets=["Example", "Unknown Outlet"],
+            ),
+            outlets=self.config.outlets,
+        )
+
+        self.assertIsNotNone(repair_job)
+        assert repair_job is not None
+        self.assertEqual([outlet.name for outlet in repair_job.outlets], ["Example"])
+
+    def test_adaptive_repair_job_uses_allowed_domains(self) -> None:
+        repair_job = self._adaptive_planner().build_repair_job(
+            decision=RepairDecision(
+                action="search",
+                reason="Need a focused repair.",
+                search_query="focused query",
+                allowed_outlets=["Example", "Second Example"],
+            ),
+            outlets=self.config.outlets,
+        )
+
+        self.assertIsNotNone(repair_job)
+        assert repair_job is not None
+        self.assertEqual(
+            repair_job.allowed_domains,
+            ("example.com", "second.example.com"),
+        )
+        self.assertNotIn("site:", repair_job.search_query)
+
+    def test_adaptive_caps_candidates_per_outlet(self) -> None:
+        self.config.search.adaptive_react_max_candidates_per_outlet = 2
+        articles = self._adaptive_planner().cap_per_outlet(
+            [
+                self._article("Example", "https://example.com/1"),
+                self._article("Example", "https://example.com/2"),
+                self._article("Example", "https://example.com/3"),
+                self._article("Second Example", "https://second.example.com/1"),
+            ]
+        )
+
+        self.assertEqual(
+            [article.url for article in articles],
+            [
+                "https://example.com/1",
+                "https://example.com/2",
+                "https://second.example.com/1",
+            ],
+        )
+
+    def test_adaptive_writes_observation_decision_and_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            debug_output = DebugOutput(Path(tmp_dir))
+            gateway = SequencedFakeOpenAIWebSearchGateway(
+                [
+                    self._openai_response(
+                        [
+                            self._candidate_payload(
+                                title="First result",
+                                url="https://example.com/first",
+                            )
+                        ]
+                    )
+                ]
+            )
+            client = self._openai_client(
+                gateway=gateway,
+                adaptive_enabled=True,
+                repair_text=json.dumps(
+                    {
+                        "action": "finish",
+                        "reason": "The first search is good enough.",
+                        "search_query": "",
+                        "allowed_outlets": [],
+                    }
+                ),
+                debug_output=debug_output,
+            )
+
+            client.search_candidates("What changed?")
+
+            run_dir = Path(tmp_dir)
+            self.assertTrue((run_dir / "adaptive_react_observation.json").exists())
+            self.assertTrue((run_dir / "adaptive_react_decision.json").exists())
+            trace = (run_dir / "adaptive_react_trace.txt").read_text()
+            self.assertIn("Action 1: GlobalSearch", trace)
+            self.assertIn("Reason 2:", trace)
+            self.assertIn("Final:", trace)
+
+    def test_non_adaptive_mode_keeps_existing_behavior(self) -> None:
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                )
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=False,
+            repair_text="not json",
+        )
+
+        articles = client.search_candidates("What changed?")
+
+        self.assertEqual(len(articles), 1)
+        self.assertEqual(len(gateway.requests), 1)
+
+    def test_repair_search_uses_max_tool_calls_override(self) -> None:
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Repair result",
+                            url="https://second.example.com/repair",
+                            outlet_name="Second Example",
+                            domain="second.example.com",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_texts=[
+                json.dumps(
+                    {
+                        "action": "search",
+                        "reason": "Second Example is missing.",
+                        "search_query": "focused repair query",
+                        "allowed_outlets": ["Second Example"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "action": "finish",
+                        "reason": "The repair added enough diversity.",
+                        "search_query": "",
+                        "allowed_outlets": [],
+                    }
+                ),
+            ],
+        )
+
+        client.search_candidates("What changed?")
+
+        self.assertEqual(gateway.requests[0].max_tool_calls, 8)
+        self.assertEqual(gateway.requests[1].max_tool_calls, 2)
+
+    def test_adaptive_loop_can_run_two_repairs(self) -> None:
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First repair",
+                            url="https://second.example.com/repair",
+                            outlet_name="Second Example",
+                            domain="second.example.com",
+                            search_query="first repair query",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Second repair",
+                            url="https://example.com/second",
+                            search_query="second repair query",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_texts=[
+                self._decision_text(
+                    action="search",
+                    reason="Second Example is missing.",
+                    search_query="first repair query",
+                    allowed_outlets=["Second Example"],
+                ),
+                self._decision_text(
+                    action="search",
+                    reason="Example needs another candidate.",
+                    search_query="second repair query",
+                    allowed_outlets=["Example"],
+                ),
+            ],
+        )
+
+        articles = client.search_candidates("What changed?")
+
+        self.assertEqual(len(gateway.requests), 3)
+        self.assertEqual(
+            [request.search_query for request in gateway.requests],
+            ["What changed?", "first repair query", "second repair query"],
+        )
+        self.assertEqual(len(articles), 3)
+
+    def test_adaptive_loop_stops_when_planner_finishes(self) -> None:
+        generator = SequencedTextGenerator(
+            [
+                self._decision_text(
+                    action="search",
+                    reason="Second Example is missing.",
+                    search_query="first repair query",
+                    allowed_outlets=["Second Example"],
+                ),
+                self._decision_text(
+                    action="finish",
+                    reason="The repair added enough diversity.",
+                ),
+            ]
+        )
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Repair result",
+                            url="https://second.example.com/repair",
+                            outlet_name="Second Example",
+                            domain="second.example.com",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_generator=generator,
+        )
+
+        client.search_candidates("What changed?")
+
+        self.assertEqual(len(gateway.requests), 2)
+        self.assertEqual(len(generator.prompts), 2)
+
+    def test_adaptive_loop_stops_when_repair_adds_no_new_candidates(self) -> None:
+        generator = SequencedTextGenerator(
+            [
+                self._decision_text(
+                    action="search",
+                    reason="Try the missing outlet.",
+                    search_query="duplicate repair query",
+                    allowed_outlets=["Example"],
+                ),
+                self._decision_text(
+                    action="search",
+                    reason="This should not be requested.",
+                    search_query="unused query",
+                    allowed_outlets=["Second Example"],
+                ),
+            ]
+        )
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Duplicate result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_generator=generator,
+        )
+
+        articles = client.search_candidates("What changed?")
+
+        self.assertEqual(len(articles), 1)
+        self.assertEqual(len(gateway.requests), 2)
+        self.assertEqual(len(generator.prompts), 1)
+
+    def test_adaptive_loop_does_not_exceed_max_repair_actions(self) -> None:
+        generator = SequencedTextGenerator(
+            [
+                self._decision_text(
+                    action="search",
+                    reason="First repair.",
+                    search_query="first repair query",
+                    allowed_outlets=["Second Example"],
+                ),
+                self._decision_text(
+                    action="search",
+                    reason="Second repair.",
+                    search_query="second repair query",
+                    allowed_outlets=["Example"],
+                ),
+                self._decision_text(
+                    action="search",
+                    reason="This should not be requested.",
+                    search_query="third repair query",
+                    allowed_outlets=["Example"],
+                ),
+            ]
+        )
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First repair",
+                            url="https://second.example.com/repair",
+                            outlet_name="Second Example",
+                            domain="second.example.com",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Second repair",
+                            url="https://example.com/second",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_generator=generator,
+        )
+
+        client.search_candidates("What changed?")
+
+        self.assertEqual(len(gateway.requests), 3)
+        self.assertEqual(len(generator.prompts), 2)
+
+    def test_adaptive_loop_passes_previous_actions_to_planner(self) -> None:
+        generator = SequencedTextGenerator(
+            [
+                self._decision_text(
+                    action="search",
+                    reason="First repair.",
+                    search_query="first repair query",
+                    allowed_outlets=["Second Example"],
+                ),
+                self._decision_text(
+                    action="finish",
+                    reason="The previous repair is enough.",
+                ),
+            ]
+        )
+        gateway = SequencedFakeOpenAIWebSearchGateway(
+            [
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="First result",
+                            url="https://example.com/first",
+                        )
+                    ]
+                ),
+                self._openai_response(
+                    [
+                        self._candidate_payload(
+                            title="Repair result",
+                            url="https://second.example.com/repair",
+                            outlet_name="Second Example",
+                            domain="second.example.com",
+                        )
+                    ]
+                ),
+            ]
+        )
+        client = self._openai_client(
+            gateway=gateway,
+            adaptive_enabled=True,
+            repair_generator=generator,
+        )
+
+        client.search_candidates("What changed?")
+
+        self.assertEqual(len(generator.prompts), 2)
+        self.assertIn("Previous repair actions:", generator.prompts[1])
+        self.assertIn("first repair query", generator.prompts[1])
+        self.assertIn("Remaining repair actions:\n1", generator.prompts[1])
+
+    def test_adaptive_loop_writes_multistep_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            debug_output = DebugOutput(Path(tmp_dir))
+            gateway = SequencedFakeOpenAIWebSearchGateway(
+                [
+                    self._openai_response(
+                        [
+                            self._candidate_payload(
+                                title="First result",
+                                url="https://example.com/first",
+                            )
+                        ]
+                    ),
+                    self._openai_response(
+                        [
+                            self._candidate_payload(
+                                title="First repair",
+                                url="https://second.example.com/repair",
+                                outlet_name="Second Example",
+                                domain="second.example.com",
+                            )
+                        ]
+                    ),
+                    self._openai_response(
+                        [
+                            self._candidate_payload(
+                                title="Second repair",
+                                url="https://example.com/second",
+                            )
+                        ]
+                    ),
+                ]
+            )
+            client = self._openai_client(
+                gateway=gateway,
+                adaptive_enabled=True,
+                repair_texts=[
+                    self._decision_text(
+                        action="search",
+                        reason="First repair.",
+                        search_query="first repair query",
+                        allowed_outlets=["Second Example"],
+                    ),
+                    self._decision_text(
+                        action="search",
+                        reason="Second repair.",
+                        search_query="second repair query",
+                        allowed_outlets=["Example"],
+                    ),
+                ],
+                debug_output=debug_output,
+            )
+
+            client.search_candidates("What changed?")
+
+            trace = (Path(tmp_dir) / "adaptive_react_trace.txt").read_text()
+            self.assertIn("Observation 1:", trace)
+            self.assertIn("Reason 2:", trace)
+            self.assertIn("Action 2: Search", trace)
+            self.assertIn("Observation 2:", trace)
+            self.assertIn("Reason 3:", trace)
+            self.assertIn("Action 3: Search", trace)
+            self.assertIn("Observation 3:", trace)
+            self.assertIn("Final:", trace)
+
     def test_gateway_passes_allowed_domains_to_web_search_tool(self) -> None:
         gateway = object.__new__(OpenAIWebSearchGateway)
         body = _openai_completed_body()
@@ -1004,6 +1650,128 @@ class ServiceTests(unittest.TestCase):
                     },
                 }
             )
+
+    def _adaptive_planner(
+        self,
+        *,
+        text: str | None = None,
+        debug_output: DebugOutput | None = None,
+    ) -> AdaptiveReactRepairPlanner:
+        return AdaptiveReactRepairPlanner(
+            config=self.config,
+            prompt_service=PromptService(),
+            text_generator=StaticTextGenerator(text) if text is not None else None,
+            debug_output=debug_output,
+        )
+
+    def _openai_client(
+        self,
+        *,
+        gateway: SequencedFakeOpenAIWebSearchGateway,
+        adaptive_enabled: bool,
+        repair_text: str = "",
+        repair_texts: list[str] | None = None,
+        repair_generator: SequencedTextGenerator | None = None,
+        debug_output: DebugOutput | None = None,
+    ) -> OpenAIWebSearchClient:
+        self.config.search.provider = "openai_web_search"
+        self.config.search.max_sources = 2
+        self.config.search.adaptive_react_enabled = adaptive_enabled
+        self.config.search.adaptive_react_repair_max_tool_calls = 2
+        self.config.search.adaptive_react_max_repair_actions = 2
+        self.config.search.adaptive_react_max_candidates_per_outlet = 2
+        repair_planner_generator = None
+        if repair_generator is not None:
+            repair_planner_generator = repair_generator
+        elif repair_texts is not None:
+            repair_planner_generator = SequencedTextGenerator(repair_texts)
+        elif repair_text:
+            repair_planner_generator = StaticTextGenerator(repair_text)
+        settings = OpenAIWebSearchSettings(
+            api_key_env="UNUSED_IN_TEST",
+            model_id="gpt-5.4-mini",
+            max_output_tokens=256,
+            temperature=0.0,
+            reasoning_effort="low",
+            max_tool_calls=8,
+            text_verbosity="low",
+        )
+        return OpenAIWebSearchClient(
+            config=self.config,
+            settings=settings,
+            prompt_service=PromptService(),
+            job_planner=OpenAISearchJobPlanner(),
+            gateway=gateway,
+            prompt_builder=FakeOpenAIWebSearchPromptBuilder(),
+            normalizer=OpenAIArticleNormalizer(),
+            deduplicator=ArticleDeduplicator(),
+            repair_planner_generator=repair_planner_generator,
+            debug_output=debug_output,
+        )
+
+    def _article(self, outlet_name: str, url: str) -> ArticleRecord:
+        outlet = next(
+            outlet for outlet in self.config.outlets if outlet.name == outlet_name
+        )
+        return ArticleRecord(
+            title=f"{outlet_name} title",
+            url=url,
+            outlet_name=outlet.name,
+            domain=outlet.domain,
+            country=outlet.country,
+            medium_type=outlet.medium_type,
+            orientation=outlet.orientation,
+            published_at="2026-05-01",
+            snippet="Snippet",
+            article_text="Article text",
+            search_query="query",
+        )
+
+    def _candidate_payload(
+        self,
+        *,
+        title: str,
+        url: str,
+        outlet_name: str = "Example",
+        domain: str = "example.com",
+        search_query: str = "query",
+    ) -> dict[str, object]:
+        return {
+            "title": title,
+            "url": url,
+            "outlet_name": outlet_name,
+            "domain": domain,
+            "published_at": "2026-05-01",
+            "snippet": "Snippet",
+            "article_text": "Article text",
+            "search_query": search_query,
+        }
+
+    def _decision_text(
+        self,
+        *,
+        action: str,
+        reason: str,
+        search_query: str = "",
+        allowed_outlets: list[str] | None = None,
+    ) -> str:
+        return json.dumps(
+            {
+                "action": action,
+                "reason": reason,
+                "search_query": search_query,
+                "allowed_outlets": allowed_outlets or [],
+            }
+        )
+
+    def _openai_response(
+        self,
+        candidates: list[dict[str, object]],
+    ) -> OpenAIWebSearchResponse:
+        return OpenAIWebSearchResponse(
+            raw_text=json.dumps(candidates),
+            response_dump='{"status":"completed"}',
+        )
 
 
 def _openai_completed_body() -> dict[str, object]:
