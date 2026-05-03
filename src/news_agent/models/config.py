@@ -55,6 +55,11 @@ class SearchConfig:
     web_search_reasoning_effort: str = ""
     web_search_max_tool_calls: int = 1
     web_search_text_verbosity: str = "low"
+    web_search_use_allowed_domains: bool = True
+    web_search_include_sources: bool = True
+    web_search_tool_choice: str = "required"
+    web_search_search_context_size: str = "medium"
+    web_search_use_site_query_filters: bool = False
 
 
 @dataclass(slots=True)

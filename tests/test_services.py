@@ -34,11 +34,13 @@ from news_agent.services.search.free_news_api import FreeNewsApiSearchClient
 from news_agent.services.search.openai import OpenAIWebSearchClient
 from news_agent.services.search.openai.article_normalizer import OpenAIArticleNormalizer
 from news_agent.services.search.openai.gateway import DebuggingOpenAIWebSearchGateway
+from news_agent.services.search.openai.gateway import OpenAIWebSearchGateway
 from news_agent.services.search.openai.gateway import OpenAIWebSearchRequest
 from news_agent.services.search.openai.gateway import OpenAIWebSearchResponse
 from news_agent.services.search.openai.gateway import _create_openai_response
 from news_agent.services.search.openai.gateway import _extract_openai_response_text
 from news_agent.services.search.openai.gateway import _raise_for_incomplete_openai_response
+from news_agent.services.search.openai.domain_utils import normalize_allowed_domain
 from news_agent.services.search.openai.job_planner import OpenAISearchJobPlanner
 from news_agent.services.search.rss import GoogleNewsRssSearchClient
 from news_agent.services.llm.text_generation import ModelOutputError
@@ -561,7 +563,22 @@ class ServiceTests(unittest.TestCase):
 
         self.assertEqual(url, "https://www.reuters.com/world/example")
 
-    def test_openai_search_jobs_add_site_filters_and_prefer_keyword_query(self) -> None:
+    def test_normalize_allowed_domain_removes_https(self) -> None:
+        self.assertEqual(
+            normalize_allowed_domain("https://www.reuters.com/world/"),
+            "www.reuters.com",
+        )
+
+    def test_normalize_allowed_domain_removes_path(self) -> None:
+        self.assertEqual(
+            normalize_allowed_domain("https://cnn.com/world/latest"),
+            "cnn.com",
+        )
+
+    def test_normalize_allowed_domain_keeps_root_domain(self) -> None:
+        self.assertEqual(normalize_allowed_domain("reuters.com"), "reuters.com")
+
+    def test_job_planner_uses_allowed_domains_without_site_filters(self) -> None:
         jobs = OpenAISearchJobPlanner().build_jobs(
             query="What are the latest casualty figures?",
             plan=SearchPlan(
@@ -575,11 +592,44 @@ class ServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(len(jobs), 1)
+        self.assertEqual(
+            jobs[0].allowed_domains,
+            ("example.com", "second.example.com"),
+        )
         self.assertTrue(
             jobs[0].search_query.startswith("Iran USA conflict latest casualty figures")
         )
+        self.assertNotIn("site:example.com", jobs[0].search_query)
+
+    def test_job_planner_can_keep_legacy_site_filters_when_enabled(self) -> None:
+        jobs = OpenAISearchJobPlanner().build_jobs(
+            query="What are the latest casualty figures?",
+            plan=SearchPlan(queries=["Iran USA conflict latest casualty figures"]),
+            outlets=self.config.outlets,
+            max_calls=1,
+            use_allowed_domains=False,
+            use_site_query_filters=True,
+        )
+
+        self.assertEqual(jobs[0].allowed_domains, ())
         self.assertIn("site:example.com", jobs[0].search_query)
         self.assertIn("site:second.example.com", jobs[0].search_query)
+
+    def test_job_planner_can_use_both_allowed_domains_and_site_filters_for_experiment(self) -> None:
+        jobs = OpenAISearchJobPlanner().build_jobs(
+            query="What are the latest casualty figures?",
+            plan=SearchPlan(queries=["Iran USA conflict latest casualty figures"]),
+            outlets=self.config.outlets,
+            max_calls=1,
+            use_allowed_domains=True,
+            use_site_query_filters=True,
+        )
+
+        self.assertEqual(
+            jobs[0].allowed_domains,
+            ("example.com", "second.example.com"),
+        )
+        self.assertIn("site:example.com", jobs[0].search_query)
 
     def test_openai_search_jobs_split_outlets_by_call_budget(self) -> None:
         outlets = [
@@ -603,8 +653,19 @@ class ServiceTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 3)
         self.assertEqual([len(job.outlets) for job in jobs], [6, 3, 3])
-        self.assertIn("site:outlet0.example.com", jobs[0].search_query)
-        self.assertIn("site:outlet5.example.com", jobs[2].search_query)
+        self.assertNotIn("site:outlet0.example.com", jobs[0].search_query)
+        self.assertEqual(
+            jobs[0].allowed_domains,
+            tuple(f"outlet{index}.example.com" for index in range(6)),
+        )
+        self.assertEqual(
+            jobs[1].allowed_domains,
+            tuple(f"outlet{index}.example.com" for index in range(3)),
+        )
+        self.assertEqual(
+            jobs[2].allowed_domains,
+            tuple(f"outlet{index}.example.com" for index in range(3, 6)),
+        )
 
     def test_openai_search_jobs_use_broad_plus_one_job_per_outlet_when_budget_allows(self) -> None:
         outlets = [
@@ -684,7 +745,7 @@ class ServiceTests(unittest.TestCase):
                 OpenAIWebSearchRequest(
                     call_name="openai_web_search_01",
                     prompt="Find the latest update.",
-                    search_query="latest update site:example.com",
+                    search_query="latest update",
                     outlet_names=("Example",),
                     model_id="gpt-5.4-mini",
                     max_output_tokens=256,
@@ -692,6 +753,11 @@ class ServiceTests(unittest.TestCase):
                     reasoning_effort="low",
                     max_tool_calls=1,
                     text_verbosity="low",
+                    allowed_domains=("example.com",),
+                    include_sources=True,
+                    tool_choice="required",
+                    search_context_size="medium",
+                    use_site_query_filters=False,
                 )
             )
 
@@ -706,11 +772,18 @@ class ServiceTests(unittest.TestCase):
             self.assertTrue((call_dirs[0] / "output.txt").exists())
             self.assertTrue((call_dirs[0] / "search_job.json").exists())
             self.assertTrue((call_dirs[0] / "response.json").exists())
+            self.assertTrue((call_dirs[0] / "internal_web_search_calls.json").exists())
+            self.assertTrue((call_dirs[0] / "web_search_sources.json").exists())
             search_job = json.loads(
                 (call_dirs[0] / "search_job.json").read_text()
             )
-            self.assertEqual(search_job["search_query"], "latest update site:example.com")
+            self.assertEqual(search_job["search_query"], "latest update")
             self.assertEqual(search_job["outlets"], ["Example"])
+            self.assertEqual(search_job["allowed_domains"], ["example.com"])
+            self.assertTrue(search_job["include_sources"])
+            self.assertEqual(search_job["tool_choice"], "required")
+            self.assertEqual(search_job["search_context_size"], "medium")
+            self.assertFalse(search_job["use_site_query_filters"])
 
     def test_openai_client_uses_injected_settings_for_request(self) -> None:
         gateway = FakeOpenAIWebSearchGateway()
@@ -747,6 +820,104 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(gateway.request.reasoning_effort, "high")
         self.assertEqual(gateway.request.max_tool_calls, 4)
         self.assertEqual(gateway.request.text_verbosity, "medium")
+        self.assertEqual(
+            gateway.request.allowed_domains,
+            ("example.com", "second.example.com"),
+        )
+        self.assertTrue(gateway.request.include_sources)
+        self.assertEqual(gateway.request.tool_choice, "required")
+        self.assertEqual(gateway.request.search_context_size, "medium")
+        self.assertFalse(gateway.request.use_site_query_filters)
+        self.assertNotIn("site:example.com", gateway.request.search_query)
+
+    def test_gateway_passes_allowed_domains_to_web_search_tool(self) -> None:
+        gateway = object.__new__(OpenAIWebSearchGateway)
+        body = _openai_completed_body()
+        gateway.client = FakeOpenAIClient(body)
+
+        gateway.search(
+            OpenAIWebSearchRequest(
+                call_name="call",
+                prompt="prompt",
+                search_query="query",
+                outlet_names=("Example",),
+                model_id="gpt-5.4-mini",
+                max_output_tokens=256,
+                temperature=0.0,
+                allowed_domains=("https://www.example.com/world/",),
+            )
+        )
+
+        raw_kwargs = gateway.client.responses.with_raw_response.create_kwargs
+        self.assertIsNotNone(raw_kwargs)
+        assert raw_kwargs is not None
+        self.assertEqual(
+            raw_kwargs["tools"][0]["filters"],
+            {"allowed_domains": ["www.example.com"]},
+        )
+
+    def test_gateway_sets_search_context_size(self) -> None:
+        gateway = object.__new__(OpenAIWebSearchGateway)
+        gateway.client = FakeOpenAIClient(_openai_completed_body())
+
+        gateway.search(
+            OpenAIWebSearchRequest(
+                call_name="call",
+                prompt="prompt",
+                search_query="query",
+                outlet_names=("Example",),
+                model_id="gpt-5.4-mini",
+                max_output_tokens=256,
+                temperature=0.0,
+                search_context_size="high",
+            )
+        )
+
+        raw_kwargs = gateway.client.responses.with_raw_response.create_kwargs
+        assert raw_kwargs is not None
+        self.assertEqual(raw_kwargs["tools"][0]["search_context_size"], "high")
+
+    def test_gateway_includes_web_search_sources_when_enabled(self) -> None:
+        gateway = object.__new__(OpenAIWebSearchGateway)
+        gateway.client = FakeOpenAIClient(_openai_completed_body())
+
+        gateway.search(
+            OpenAIWebSearchRequest(
+                call_name="call",
+                prompt="prompt",
+                search_query="query",
+                outlet_names=("Example",),
+                model_id="gpt-5.4-mini",
+                max_output_tokens=256,
+                temperature=0.0,
+                include_sources=True,
+            )
+        )
+
+        raw_kwargs = gateway.client.responses.with_raw_response.create_kwargs
+        assert raw_kwargs is not None
+        self.assertEqual(raw_kwargs["include"], ["web_search_call.action.sources"])
+
+    def test_gateway_sets_tool_choice_required(self) -> None:
+        gateway = object.__new__(OpenAIWebSearchGateway)
+        gateway.client = FakeOpenAIClient(_openai_completed_body())
+
+        gateway.search(
+            OpenAIWebSearchRequest(
+                call_name="call",
+                prompt="prompt",
+                search_query="query",
+                outlet_names=("Example",),
+                model_id="gpt-5.4-mini",
+                max_output_tokens=256,
+                temperature=0.0,
+                tool_choice="required",
+            )
+        )
+
+        raw_kwargs = gateway.client.responses.with_raw_response.create_kwargs
+        assert raw_kwargs is not None
+        self.assertEqual(raw_kwargs["tool_choice"], "required")
 
     def test_openai_raw_response_path_preserves_reasoning_effort(self) -> None:
         body = {
@@ -806,6 +977,24 @@ class ServiceTests(unittest.TestCase):
                     },
                 }
             )
+
+
+def _openai_completed_body() -> dict[str, object]:
+    return {
+        "status": "completed",
+        "output": [
+            {
+                "id": "msg_1",
+                "type": "message",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "[]",
+                    }
+                ],
+            }
+        ],
+    }
 
 
 if __name__ == "__main__":

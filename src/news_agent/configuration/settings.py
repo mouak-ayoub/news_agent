@@ -17,6 +17,11 @@ class OpenAIWebSearchSettings:
     reasoning_effort: str = ""
     max_tool_calls: int = 1
     text_verbosity: str = "low"
+    use_allowed_domains: bool = True
+    include_sources: bool = True
+    tool_choice: str = "required"
+    search_context_size: str = "medium"
+    use_site_query_filters: bool = False
 
 
 def resolve_openai_web_search_settings(config: AppConfig) -> OpenAIWebSearchSettings:
@@ -43,6 +48,10 @@ def resolve_openai_web_search_settings(config: AppConfig) -> OpenAIWebSearchSett
         reasoning_effort=config.search.web_search_reasoning_effort,
         max_tool_calls=config.search.web_search_max_tool_calls,
         text_verbosity=config.search.web_search_text_verbosity,
+        use_allowed_domains=config.search.web_search_use_allowed_domains,
+        include_sources=config.search.web_search_include_sources,
+        tool_choice=config.search.web_search_tool_choice,
+        search_context_size=config.search.web_search_search_context_size,
+        use_site_query_filters=config.search.web_search_use_site_query_filters,
     )
-
 

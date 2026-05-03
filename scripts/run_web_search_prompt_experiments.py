@@ -25,6 +25,7 @@ from news_agent.services.prompts.prompt_service import PromptService
 from news_agent.services.search.openai.gateway import DebuggingOpenAIWebSearchGateway
 from news_agent.services.search.openai.gateway import OpenAIWebSearchGateway
 from news_agent.services.search.openai.gateway import OpenAIWebSearchRequest
+from news_agent.services.search.openai.gateway import _web_search_call_summaries
 from news_agent.services.search.openai.job_planner import OpenAISearchJobPlanner
 from news_agent.services.search.openai.prompt_builder import OpenAIWebSearchPromptBuilder
 
@@ -76,6 +77,11 @@ MAX_SEARCH_CALLS_PER_RUN = 1
 WEB_SEARCH_MAX_TOOL_CALLS = 8
 WEB_SEARCH_REASONING_EFFORT = "low"
 WEB_SEARCH_TEXT_VERBOSITY = "low"
+WEB_SEARCH_USE_ALLOWED_DOMAINS = True
+WEB_SEARCH_INCLUDE_SOURCES = True
+WEB_SEARCH_TOOL_CHOICE = "required"
+WEB_SEARCH_SEARCH_CONTEXT_SIZE = "medium"
+WEB_SEARCH_USE_SITE_QUERY_FILTERS = False
 PREFERRED_OUTLETS = ("Reuters", "CNN", "France 24")
 
 
@@ -126,6 +132,11 @@ def run_case(
         config.search.web_search_max_tool_calls = WEB_SEARCH_MAX_TOOL_CALLS
         config.search.web_search_reasoning_effort = WEB_SEARCH_REASONING_EFFORT
         config.search.web_search_text_verbosity = WEB_SEARCH_TEXT_VERBOSITY
+        config.search.web_search_use_allowed_domains = WEB_SEARCH_USE_ALLOWED_DOMAINS
+        config.search.web_search_include_sources = WEB_SEARCH_INCLUDE_SOURCES
+        config.search.web_search_tool_choice = WEB_SEARCH_TOOL_CHOICE
+        config.search.web_search_search_context_size = WEB_SEARCH_SEARCH_CONTEXT_SIZE
+        config.search.web_search_use_site_query_filters = WEB_SEARCH_USE_SITE_QUERY_FILTERS
         config.search.web_search_prompt = variant["prompt"]
 
         settings = resolve_openai_web_search_settings(config)
@@ -135,6 +146,8 @@ def run_case(
             plan=SearchPlan(queries=[question["question"]]),
             outlets=outlets,
             max_calls=config.search.max_search_calls_per_run,
+            use_allowed_domains=config.search.web_search_use_allowed_domains,
+            use_site_query_filters=config.search.web_search_use_site_query_filters,
         )
         if len(jobs) != 1:
             raise RuntimeError(f"expected one Python-level search job, got {len(jobs)}")
@@ -160,12 +173,18 @@ def run_case(
                     "web_search_max_tool_calls": WEB_SEARCH_MAX_TOOL_CALLS,
                     "web_search_reasoning_effort": WEB_SEARCH_REASONING_EFFORT,
                     "web_search_text_verbosity": WEB_SEARCH_TEXT_VERBOSITY,
+                    "web_search_use_allowed_domains": WEB_SEARCH_USE_ALLOWED_DOMAINS,
+                    "web_search_include_sources": WEB_SEARCH_INCLUDE_SOURCES,
+                    "web_search_tool_choice": WEB_SEARCH_TOOL_CHOICE,
+                    "web_search_search_context_size": WEB_SEARCH_SEARCH_CONTEXT_SIZE,
+                    "web_search_use_site_query_filters": WEB_SEARCH_USE_SITE_QUERY_FILTERS,
                     "web_search_prompt": variant["prompt"],
                 },
                 "active_outlets": [asdict(outlet) for outlet in outlets],
                 "python_search_job": {
                     "search_query": job.search_query,
                     "outlets": [outlet.name for outlet in job.outlets],
+                    "allowed_domains": list(job.allowed_domains),
                 },
             },
         )
@@ -186,12 +205,22 @@ def run_case(
                 reasoning_effort=settings.reasoning_effort,
                 max_tool_calls=settings.max_tool_calls,
                 text_verbosity=settings.text_verbosity,
+                allowed_domains=job.allowed_domains,
+                include_sources=settings.include_sources,
+                tool_choice=settings.tool_choice,
+                search_context_size=settings.search_context_size,
+                use_site_query_filters=settings.use_site_query_filters,
             )
         )
 
         raw_candidates = parse_candidates(response.raw_text)
         response_json = parse_json_or_none(response.response_dump)
-        internal_queries = extract_internal_queries(response_json)
+        web_search_calls = _web_search_call_summaries(response.response_dump)
+        completed_web_search_calls = [
+            call for call in web_search_calls if call.get("status") == "completed"
+        ]
+        attempted_web_search_calls = len(web_search_calls)
+        internal_queries = extract_internal_queries(completed_web_search_calls)
         usage = extract_usage(response_json)
         outlet_counts = count_outlets(raw_candidates)
         preferred_present = {
@@ -208,7 +237,14 @@ def run_case(
                 "outlet_counts": outlet_counts,
                 "preferred_outlets_present": preferred_present,
                 "internal_search_queries": internal_queries,
-                "internal_search_call_count": len(internal_queries),
+                "completed_web_search_call_count": len(completed_web_search_calls),
+                "attempted_web_search_call_count": attempted_web_search_calls,
+                "internal_search_call_count": len(completed_web_search_calls),
+                "allowed_domains": list(job.allowed_domains),
+                "use_site_query_filters": config.search.web_search_use_site_query_filters,
+                "include_sources": config.search.web_search_include_sources,
+                "tool_choice": config.search.web_search_tool_choice,
+                "search_context_size": config.search.web_search_search_context_size,
                 "usage": usage,
                 "python_search_query": job.search_query,
                 "candidate_titles": candidate_titles(raw_candidates),
@@ -226,13 +262,14 @@ def run_case(
 
     print(
         "DONE {variant} :: {question} status={status} raw={raw} outlets={outlets} "
-        "calls={calls} latency={latency}s".format(
+        "completed_calls={calls} attempted_calls={attempted} latency={latency}s".format(
             variant=summary["variant_id"],
             question=summary["question_id"],
             status=summary["status"],
             raw=summary.get("raw_candidate_count", 0),
             outlets=summary.get("distinct_outlet_count", 0),
-            calls=summary.get("internal_search_call_count", 0),
+            calls=summary.get("completed_web_search_call_count", 0),
+            attempted=summary.get("attempted_web_search_call_count", 0),
             latency=summary.get("latency_seconds", 0),
         ),
         flush=True,
@@ -261,6 +298,16 @@ def extract_internal_queries(response: Any) -> list[str]:
         text = str(value).strip()
         if text and text not in queries:
             queries.append(text)
+
+    if isinstance(response, list):
+        for item in response:
+            if not isinstance(item, dict):
+                continue
+            for query in item.get("queries", []) or []:
+                add(query)
+            if item.get("query"):
+                add(item["query"])
+        return queries
 
     def walk(value: Any) -> None:
         if isinstance(value, dict):
@@ -339,11 +386,16 @@ def render_markdown(summaries: list[dict[str, Any]]) -> str:
         f"- web_search_max_tool_calls: {WEB_SEARCH_MAX_TOOL_CALLS}",
         f"- web_search_reasoning_effort: {WEB_SEARCH_REASONING_EFFORT}",
         f"- web_search_text_verbosity: {WEB_SEARCH_TEXT_VERBOSITY}",
+        f"- web_search_use_allowed_domains: {WEB_SEARCH_USE_ALLOWED_DOMAINS}",
+        f"- web_search_include_sources: {WEB_SEARCH_INCLUDE_SOURCES}",
+        f"- web_search_tool_choice: {WEB_SEARCH_TOOL_CHOICE}",
+        f"- web_search_search_context_size: {WEB_SEARCH_SEARCH_CONTEXT_SIZE}",
+        f"- web_search_use_site_query_filters: {WEB_SEARCH_USE_SITE_QUERY_FILTERS}",
         "- active OpenAI outlets: Reuters, CNN, France 24, Jerusalem Post, Tasnim News",
         "- note: Al Jazeera is not in the active OpenAI outlet config for these runs.",
         "",
-        "| Variant | Question | Status | Raw | Outlets | Preferred | Tool calls | Latency | Tokens |",
-        "| --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- |",
+        "| Variant | Question | Status | Raw | Outlets | Preferred | Completed calls | Attempted calls | Allowed domains | Site filters | Sources | Tool choice | Context | Latency | Tokens |",
+        "| --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- | --- | --- | ---: | --- |",
     ]
     for item in summaries:
         usage = item.get("usage", {}) or {}
@@ -355,14 +407,20 @@ def render_markdown(summaries: list[dict[str, Any]]) -> str:
         if tokens is None:
             tokens = "-"
         lines.append(
-            "| {variant} | {question} | {status} | {raw} | {outlets} | {preferred} | {calls} | {latency} | {tokens} |".format(
+            "| {variant} | {question} | {status} | {raw} | {outlets} | {preferred} | {completed} | {attempted} | {allowed_domains} | {site_filters} | {sources} | {tool_choice} | {context} | {latency} | {tokens} |".format(
                 variant=item.get("variant_id", ""),
                 question=item.get("question_id", ""),
                 status=item.get("status", ""),
                 raw=item.get("raw_candidate_count", 0),
                 outlets=item.get("distinct_outlet_count", 0),
                 preferred=preferred_text,
-                calls=item.get("internal_search_call_count", 0),
+                completed=item.get("completed_web_search_call_count", 0),
+                attempted=item.get("attempted_web_search_call_count", 0),
+                allowed_domains=len(item.get("allowed_domains", []) or []),
+                site_filters=item.get("use_site_query_filters", ""),
+                sources=item.get("include_sources", ""),
+                tool_choice=item.get("tool_choice", ""),
+                context=item.get("search_context_size", ""),
                 latency=item.get("latency_seconds", 0),
                 tokens=tokens,
             )
@@ -377,6 +435,13 @@ def render_markdown(summaries: list[dict[str, Any]]) -> str:
                 f"- status: {item.get('status')}",
                 f"- case_dir: {item.get('case_dir')}",
                 f"- python_search_query: {item.get('python_search_query', '')}",
+                f"- allowed_domains: {json.dumps(item.get('allowed_domains', []), ensure_ascii=False)}",
+                f"- use_site_query_filters: {item.get('use_site_query_filters', '')}",
+                f"- include_sources: {item.get('include_sources', '')}",
+                f"- tool_choice: {item.get('tool_choice', '')}",
+                f"- search_context_size: {item.get('search_context_size', '')}",
+                f"- completed_web_search_call_count: {item.get('completed_web_search_call_count', 0)}",
+                f"- attempted_web_search_call_count: {item.get('attempted_web_search_call_count', 0)}",
                 f"- outlet_counts: {json.dumps(item.get('outlet_counts', {}), ensure_ascii=False)}",
                 f"- internal_search_queries: {json.dumps(item.get('internal_search_queries', []), ensure_ascii=False)}",
                 f"- usage: {json.dumps(item.get('usage', {}), ensure_ascii=False)}",

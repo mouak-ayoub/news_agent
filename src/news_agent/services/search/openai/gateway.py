@@ -4,12 +4,14 @@ from dataclasses import dataclass
 import json
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 from news_agent.services.debug.debug_output import DebugOutput
 from news_agent.services.llm.text_generation import ModelGenerationError
 from news_agent.services.llm.text_generation import ModelOutputError
 from news_agent.services.llm.text_generation import openai_supports_reasoning_effort
 from news_agent.services.llm.text_generation import openai_supports_temperature
+from .domain_utils import normalize_allowed_domain
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +26,11 @@ class OpenAIWebSearchRequest:
     reasoning_effort: str = ""
     max_tool_calls: int = 0
     text_verbosity: str = ""
+    allowed_domains: tuple[str, ...] = ()
+    include_sources: bool = False
+    tool_choice: str = ""
+    search_context_size: str = ""
+    use_site_query_filters: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,12 +64,20 @@ class OpenAIWebSearchGateway:
                 "OpenAI web search requires `search.web_search_model_id`."
             )
 
+        tool = _build_web_search_tool(request)
         request_kwargs: dict[str, Any] = {
             "model": request.model_id,
-            "tools": [{"type": "web_search"}],
+            "tools": [tool],
             "input": request.prompt,
             "max_output_tokens": request.max_output_tokens,
         }
+        if request.include_sources:
+            request_kwargs["include"] = ["web_search_call.action.sources"]
+
+        normalized_tool_choice = _normalize_tool_choice(request.tool_choice)
+        if normalized_tool_choice:
+            request_kwargs["tool_choice"] = normalized_tool_choice
+
         normalized_max_tool_calls = max(0, int(request.max_tool_calls))
         if normalized_max_tool_calls:
             request_kwargs["max_tool_calls"] = normalized_max_tool_calls
@@ -123,6 +138,11 @@ class DebuggingOpenAIWebSearchGateway:
                     {
                         "search_query": request.search_query,
                         "outlets": list(request.outlet_names),
+                        "allowed_domains": list(request.allowed_domains),
+                        "include_sources": request.include_sources,
+                        "tool_choice": request.tool_choice,
+                        "search_context_size": request.search_context_size,
+                        "use_site_query_filters": request.use_site_query_filters,
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -130,6 +150,19 @@ class DebuggingOpenAIWebSearchGateway:
             )
             response = self.inner.search(request)
             debug_call.write_artifact("response.json", response.response_dump)
+            web_search_calls = _web_search_call_summaries(response.response_dump)
+            debug_call.write_artifact(
+                "internal_web_search_calls.json",
+                json.dumps(web_search_calls, ensure_ascii=False, indent=2),
+            )
+            debug_call.write_artifact(
+                "web_search_sources.json",
+                json.dumps(
+                    _flatten_web_search_sources(web_search_calls),
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+            )
             debug_call.write_output(response.raw_text)
             return response
         except Exception as exc:
@@ -162,6 +195,52 @@ def _normalize_text_verbosity(value: str) -> str:
             + ", ".join(sorted(allowed_values))
         )
     return normalized
+
+
+def _normalize_tool_choice(value: str) -> str:
+    normalized = value.strip().lower()
+    if not normalized:
+        return ""
+    allowed_values = {"auto", "required", "none"}
+    if normalized not in allowed_values:
+        raise ModelGenerationError(
+            "`search.web_search_tool_choice` must be one of: "
+            + ", ".join(sorted(allowed_values))
+        )
+    return normalized
+
+
+def _normalize_search_context_size(value: str) -> str:
+    normalized = value.strip().lower()
+    if not normalized:
+        return ""
+    allowed_values = {"low", "medium", "high"}
+    if normalized not in allowed_values:
+        raise ModelGenerationError(
+            "`search.web_search_search_context_size` must be one of: "
+            + ", ".join(sorted(allowed_values))
+        )
+    return normalized
+
+
+def _build_web_search_tool(request: OpenAIWebSearchRequest) -> dict[str, Any]:
+    tool: dict[str, Any] = {"type": "web_search"}
+
+    allowed_domains = tuple(
+        domain
+        for domain in (
+            normalize_allowed_domain(value) for value in request.allowed_domains
+        )
+        if domain
+    )
+    if allowed_domains:
+        tool["filters"] = {"allowed_domains": list(allowed_domains)}
+
+    search_context_size = _normalize_search_context_size(request.search_context_size)
+    if search_context_size:
+        tool["search_context_size"] = search_context_size
+
+    return tool
 
 
 def _create_openai_response(client: Any, request_kwargs: dict[str, Any]) -> Any:
@@ -254,9 +333,74 @@ def _serialize_openai_response(response: Any) -> str:
     return json.dumps(response, ensure_ascii=False, indent=2, default=str)
 
 
+def _web_search_call_summaries(response_dump: str) -> list[dict[str, Any]]:
+    try:
+        response = json.loads(response_dump)
+    except json.JSONDecodeError:
+        return []
+
+    calls: list[dict[str, Any]] = []
+    for index, output_item in enumerate(_field(response, "output", []) or [], start=1):
+        if _field(output_item, "type", "") != "web_search_call":
+            continue
+        action = _field(output_item, "action", {}) or {}
+        sources = _source_summaries(_field(action, "sources", []) or [])
+        calls.append(
+            {
+                "index": index,
+                "status": _field(output_item, "status", ""),
+                "action_type": _field(action, "type", ""),
+                "query": _field(action, "query", ""),
+                "queries": list(_field(action, "queries", []) or []),
+                "domains": _domains_from_sources(sources),
+                "sources": sources,
+            }
+        )
+    return calls
+
+
+def _source_summaries(sources: list[Any]) -> list[dict[str, str]]:
+    summaries: list[dict[str, str]] = []
+    for source in sources:
+        url = str(_field(source, "url", "") or "")
+        title = str(_field(source, "title", "") or "")
+        if not url and not title:
+            continue
+        summaries.append({"url": url, "title": title})
+    return summaries
+
+
+def _domains_from_sources(sources: list[dict[str, str]]) -> list[str]:
+    domains: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        domain = urlparse(source.get("url", "")).netloc.lower().removeprefix("www.")
+        if not domain or domain in seen:
+            continue
+        domains.append(domain)
+        seen.add(domain)
+    return domains
+
+
+def _flatten_web_search_sources(
+    web_search_calls: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
+    for call in web_search_calls:
+        for source in call.get("sources", []):
+            values.append(
+                {
+                    "call_index": call.get("index"),
+                    "call_status": call.get("status"),
+                    "url": source.get("url", ""),
+                    "title": source.get("title", ""),
+                }
+            )
+    return values
+
+
 def _field(value: Any, name: str, default: Any = None) -> Any:
     if isinstance(value, dict):
         return value.get(name, default)
     return getattr(value, name, default)
-
 

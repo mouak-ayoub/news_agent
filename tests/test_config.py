@@ -184,9 +184,41 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.search.provider, "openai_web_search")
         self.assertEqual(config.search.api_key_env, "openai_news_api")
         self.assertEqual(config.search.web_search_model_id, "gpt-5.4-mini")
-        self.assertEqual(config.search.web_search_reasoning_effort, "none")
-        self.assertEqual(config.search.web_search_max_tool_calls, 1)
+        self.assertEqual(config.search.web_search_reasoning_effort, "low")
+        self.assertEqual(config.search.web_search_max_tool_calls, 8)
         self.assertEqual(config.search.web_search_text_verbosity, "low")
+        self.assertTrue(config.search.web_search_use_allowed_domains)
+        self.assertTrue(config.search.web_search_include_sources)
+        self.assertEqual(config.search.web_search_tool_choice, "required")
+        self.assertEqual(config.search.web_search_search_context_size, "medium")
+        self.assertFalse(config.search.web_search_use_site_query_filters)
+
+    def test_search_config_accepts_allowed_domains_settings(self) -> None:
+        config = _app_config()
+        config.search.web_search_use_allowed_domains = True
+        config.search.web_search_include_sources = True
+        config.search.web_search_tool_choice = "required"
+        config.search.web_search_search_context_size = "high"
+        config.search.web_search_use_site_query_filters = False
+
+        AppConfigValidator().validate(config)
+
+    def test_search_config_rejects_invalid_search_context_size(self) -> None:
+        config = _app_config()
+        config.search.web_search_search_context_size = "huge"
+
+        with self.assertRaisesRegex(
+            ConfigValidationError,
+            "web_search_search_context_size",
+        ):
+            AppConfigValidator().validate(config)
+
+    def test_search_config_rejects_invalid_tool_choice(self) -> None:
+        config = _app_config()
+        config.search.web_search_tool_choice = "always"
+
+        with self.assertRaisesRegex(ConfigValidationError, "web_search_tool_choice"):
+            AppConfigValidator().validate(config)
 
     def test_openai_settings_use_search_api_key_env_when_present(self) -> None:
         config = _app_config()

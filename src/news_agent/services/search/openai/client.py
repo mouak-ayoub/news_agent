@@ -65,6 +65,8 @@ class OpenAIWebSearchClient:
             plan=plan,
             outlets=target_outlets,
             max_calls=self.search_config.max_search_calls_per_run,
+            use_allowed_domains=self.search_config.web_search_use_allowed_domains,
+            use_site_query_filters=self.search_config.web_search_use_site_query_filters,
         )
         logger.info(
             "openai web search started query=%r outlets=%d jobs=%d",
@@ -120,6 +122,11 @@ class OpenAIWebSearchClient:
                     reasoning_effort=self.settings.reasoning_effort,
                     max_tool_calls=self.settings.max_tool_calls,
                     text_verbosity=self.settings.text_verbosity,
+                    allowed_domains=job.allowed_domains,
+                    include_sources=self.settings.include_sources,
+                    tool_choice=self.settings.tool_choice,
+                    search_context_size=self.settings.search_context_size,
+                    use_site_query_filters=self.settings.use_site_query_filters,
                 )
             )
             raw_output = response.raw_text
@@ -145,4 +152,3 @@ class OpenAIWebSearchClient:
             raise ModelGenerationError(
                 f"OpenAI web search request failed for job {job_index}."
             ) from exc
-

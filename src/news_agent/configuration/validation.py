@@ -34,6 +34,8 @@ class AppConfigValidator:
         if not config.outlets:
             raise ConfigValidationError("Config must define at least one outlet.")
 
+        self._validate_web_search_controls(config)
+
         for index, outlet in enumerate(config.outlets, start=1):
             if not outlet.name.strip():
                 raise ConfigValidationError(
@@ -43,6 +45,25 @@ class AppConfigValidator:
                 raise ConfigValidationError(
                     f"`outlets[{index}].domain` must not be empty."
                 )
+
+    def _validate_web_search_controls(self, config: AppConfig) -> None:
+        tool_choice = config.search.web_search_tool_choice.strip().lower()
+        allowed_tool_choices = {"", "auto", "required", "none"}
+        if tool_choice not in allowed_tool_choices:
+            raise ConfigValidationError(
+                "`search.web_search_tool_choice` must be one of: "
+                + ", ".join(repr(value) for value in sorted(allowed_tool_choices))
+            )
+
+        search_context_size = (
+            config.search.web_search_search_context_size.strip().lower()
+        )
+        allowed_context_sizes = {"", "low", "medium", "high"}
+        if search_context_size not in allowed_context_sizes:
+            raise ConfigValidationError(
+                "`search.web_search_search_context_size` must be one of: "
+                + ", ".join(repr(value) for value in sorted(allowed_context_sizes))
+            )
 
     def _validate_provider(self, config: AppConfig) -> None:
         provider = config.search.provider.strip()
@@ -62,5 +83,4 @@ class AppConfigValidator:
 def _free_news_api_key_env(config: AppConfig) -> str:
     """Resolve the configured FreeNewsAPI key env var name without reading it."""
     return config.search.api_key_env.strip() or "news_triage_codex_app"
-
 

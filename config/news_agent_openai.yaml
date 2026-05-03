@@ -24,11 +24,17 @@ search:
   web_search_model_id: gpt-5.4-mini
   # Reasoning effort for reasoning models only: none, minimal, low, medium, high, xhigh.
   # Leave empty or remove this key for non-reasoning models like gpt-4.1.
-  web_search_reasoning_effort: none
+  web_search_reasoning_effort: low
   # Limits built-in OpenAI web-search calls per search job.
   web_search_max_tool_calls: 8
   # Keeps the final candidate JSON concise.
   web_search_text_verbosity: low
+  # Use OpenAI web_search API-level domain filtering instead of prompt-only site: filters.
+  web_search_use_allowed_domains: true
+  web_search_include_sources: true
+  web_search_tool_choice: required
+  web_search_search_context_size: medium
+  web_search_use_site_query_filters: false
   days_back: 60
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20
