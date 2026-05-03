@@ -18,12 +18,6 @@
     orientation: center
     notes: Free French international outlet.
     rss_url: https://www.france24.com/en/rss
-  - name: Al Jazeera
-    domain: aljazeera.com
-    country: Qatar
-    medium_type: broadcaster / digital
-    orientation: mixed
-    notes: Strong regional framing value.
   - name: Jerusalem Post
     domain: jpost.com
     country: Israel

@@ -13,8 +13,8 @@ model:
   article_selection_model_id: gemma-4-31b-it
   metric_extraction_model_id: gemma-4-31b-it
   summary_model_id: gemma-4-31b-it
-  max_output_tokens: 10000
-  temperature: 0.2
+  max_output_tokens: 100000
+  temperature: 0.25
   gemini_retry_attempts: 5
   gemini_retry_backoff_seconds: 3.0
 
@@ -26,15 +26,15 @@ search:
   # Leave empty or remove this key for non-reasoning models like gpt-4.1.
   web_search_reasoning_effort: none
   # Limits built-in OpenAI web-search calls per search job.
-  web_search_max_tool_calls: 1
+  web_search_max_tool_calls: 8
   # Keeps the final candidate JSON concise.
   web_search_text_verbosity: low
   days_back: 60
   # The broad search can return up to one relevant article per configured outlet.
   max_sources: 20
   # outlet count + 1 gives one broad recall job plus one job per outlet.
-  max_search_calls_per_run: 2
+  max_search_calls_per_run: 1
   # Prompt variants live in config/prompts/web_search.
-  web_search_prompt: web_search/web_search_research_self_consistency
+  web_search_prompt: web_search/web_search_research_new
 
 outlets_file: outlets/openai_outlets.yaml
