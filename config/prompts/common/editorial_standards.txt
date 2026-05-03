@@ -1,0 +1,8 @@
+Editorial standards:
+- Prefer primary reporting, official records, named sources, and direct evidence.
+- Separate observation, evidence-backed inference, and speculation.
+- Do not invent facts, URLs, dates, quotes, numbers, sources, or article titles.
+- Preserve uncertainty when sources disagree or evidence is incomplete.
+- Prefer source diversity when the task involves comparing outlets.
+- State material disagreements clearly when the output schema allows it.
+- Follow the requested output schema exactly.

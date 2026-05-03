@@ -10,7 +10,12 @@ class PromptService:
 
     def build(self, template_name: str, **variables: object) -> str:
         template = self._load(template_name)
-        return template.format(**variables).strip()
+        render_variables = dict(variables)
+        if "editorial_standards" not in render_variables:
+            render_variables["editorial_standards"] = self._load_optional(
+                "common/editorial_standards"
+            )
+        return template.format(**render_variables).strip()
 
     def _load(self, template_name: str) -> str:
         if template_name in self._cache:
@@ -19,6 +24,12 @@ class PromptService:
         template = path.read_text(encoding="utf-8")
         self._cache[template_name] = template
         return template
+
+    def _load_optional(self, template_name: str) -> str:
+        path = self.prompts_dir / Path(f"{template_name}.txt")
+        if not path.exists():
+            return ""
+        return self._load(template_name)
 
 
 def _default_prompts_dir() -> Path:

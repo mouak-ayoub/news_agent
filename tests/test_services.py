@@ -42,6 +42,8 @@ from news_agent.services.search.openai.gateway import _extract_openai_response_t
 from news_agent.services.search.openai.gateway import _raise_for_incomplete_openai_response
 from news_agent.services.search.openai.domain_utils import normalize_allowed_domain
 from news_agent.services.search.openai.job_planner import OpenAISearchJobPlanner
+from news_agent.services.search.openai.job_planner import WebSearchJob
+from news_agent.services.search.openai.prompt_builder import OpenAIWebSearchPromptBuilder
 from news_agent.services.search.rss import GoogleNewsRssSearchClient
 from news_agent.services.llm.text_generation import ModelOutputError
 
@@ -630,6 +632,31 @@ class ServiceTests(unittest.TestCase):
             ("example.com", "second.example.com"),
         )
         self.assertIn("site:example.com", jobs[0].search_query)
+
+    def test_prompt_builder_for_allowed_domain_job_forbids_site_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompt_path = Path(tmp_dir) / "test_prompt.txt"
+            prompt_path.write_text(
+                "Prompt {planned_queries_json} {query} {outlets_text}",
+                encoding="utf-8",
+            )
+            prompt = OpenAIWebSearchPromptBuilder(
+                PromptService(prompts_dir=Path(tmp_dir))
+            ).build(
+                template_name="test_prompt",
+                query="What changed?",
+                job=WebSearchJob(
+                    search_query="What changed?",
+                    outlets=(self.config.outlets[0],),
+                    allowed_domains=("example.com",),
+                ),
+                days_back=7,
+                intent=None,
+            )
+
+        self.assertIn("allowed_domains", prompt)
+        self.assertIn("Do not add `site:` filters", prompt)
+        self.assertNotIn("Keep any existing `site:<domain>`", prompt)
 
     def test_openai_search_jobs_split_outlets_by_call_budget(self) -> None:
         outlets = [
